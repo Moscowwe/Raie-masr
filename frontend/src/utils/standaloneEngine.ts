@@ -10,7 +10,7 @@ import type {
   TournamentStats,
 } from '../types/tournament';
 
-const STORAGE_KEY = 'ccc_tournament_state_v1';
+const STORAGE_KEY = 'ccc_tournament_state_v2';
 
 export const INITIAL_TEAMS: Team[] = [
   { id: 1, name: 'Team 1', name_ar: 'الفريق 1', code: 'T1', color: '#00D2FF' },
@@ -74,11 +74,11 @@ export const INITIAL_GAMES: Game[] = [
 ];
 
 const SCHEDULE_MAP: Record<number, Record<number, [number, number]>> = {
-  1: { 1: [1, 6], 2: [2, 7], 3: [8, 3], 4: [9, 4], 5: [10, 5] },
-  2: { 1: [2, 6], 2: [7, 3], 3: [4, 8], 4: [5, 9], 5: [10, 1] },
-  3: { 1: [3, 6], 2: [4, 7], 3: [8, 5], 4: [1, 9], 5: [10, 2] },
-  4: { 1: [4, 6], 2: [7, 5], 3: [8, 1], 4: [9, 2], 5: [10, 3] },
-  5: { 1: [1, 2], 2: [3, 4], 3: [6, 5], 4: [8, 7], 5: [10, 9] },
+  1: { 1: [1, 6], 2: [2, 10], 3: [3, 9], 4: [4, 8], 5: [5, 7] },
+  2: { 1: [2, 7], 2: [3, 6], 3: [4, 10], 4: [5, 9], 5: [1, 8] },
+  3: { 1: [3, 8], 2: [4, 7], 3: [5, 6], 4: [1, 10], 5: [2, 9] },
+  4: { 1: [4, 9], 2: [5, 8], 3: [1, 7], 4: [2, 6], 5: [3, 10] },
+  5: { 1: [5, 10], 2: [1, 9], 3: [2, 8], 4: [3, 7], 5: [4, 6] },
 };
 
 export function computeLeaderboard(matches: TournamentMatch[]): LeaderboardEntry[] {

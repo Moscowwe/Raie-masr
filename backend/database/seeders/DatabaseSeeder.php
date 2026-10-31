@@ -157,68 +157,68 @@ class DatabaseSeeder extends Seeder
         $schedule = [
             // ROUND 1:
             // Game 1: Team 1 vs Team 6
-            // Game 2: Team 2 vs Team 7
-            // Game 3: Team 8 vs Team 3
-            // Game 4: Team 9 vs Team 4
-            // Game 5: Team 10 vs Team 5
+            // Game 2: Team 2 vs Team 10
+            // Game 3: Team 3 vs Team 9
+            // Game 4: Team 4 vs Team 8
+            // Game 5: Team 5 vs Team 7
             1 => [
                 1 => [1, 6],
-                2 => [2, 7],
-                3 => [8, 3],
-                4 => [9, 4],
-                5 => [10, 5],
+                2 => [2, 10],
+                3 => [3, 9],
+                4 => [4, 8],
+                5 => [5, 7],
             ],
             // ROUND 2:
-            // Game 1: Team 2 vs Team 6
-            // Game 2: Team 7 vs Team 3
-            // Game 3: Team 4 vs Team 8
+            // Game 1: Team 2 vs Team 7
+            // Game 2: Team 3 vs Team 6
+            // Game 3: Team 4 vs Team 10
             // Game 4: Team 5 vs Team 9
-            // Game 5: Team 10 vs Team 1
+            // Game 5: Team 1 vs Team 8
             2 => [
-                1 => [2, 6],
-                2 => [7, 3],
-                3 => [4, 8],
+                1 => [2, 7],
+                2 => [3, 6],
+                3 => [4, 10],
                 4 => [5, 9],
-                5 => [10, 1],
+                5 => [1, 8],
             ],
             // ROUND 3:
-            // Game 1: Team 3 vs Team 6
+            // Game 1: Team 3 vs Team 8
             // Game 2: Team 4 vs Team 7
-            // Game 3: Team 8 vs Team 5
-            // Game 4: Team 1 vs Team 9
-            // Game 5: Team 10 vs Team 2
+            // Game 3: Team 5 vs Team 6
+            // Game 4: Team 1 vs Team 10
+            // Game 5: Team 2 vs Team 9
             3 => [
-                1 => [3, 6],
+                1 => [3, 8],
                 2 => [4, 7],
-                3 => [8, 5],
-                4 => [1, 9],
-                5 => [10, 2],
+                3 => [5, 6],
+                4 => [1, 10],
+                5 => [2, 9],
             ],
             // ROUND 4:
-            // Game 1: Team 4 vs Team 6
-            // Game 2: Team 7 vs Team 5
-            // Game 3: Team 8 vs Team 1
-            // Game 4: Team 9 vs Team 2
-            // Game 5: Team 10 vs Team 3
+            // Game 1: Team 4 vs Team 9
+            // Game 2: Team 5 vs Team 8
+            // Game 3: Team 1 vs Team 7
+            // Game 4: Team 2 vs Team 6
+            // Game 5: Team 3 vs Team 10
             4 => [
-                1 => [4, 6],
-                2 => [7, 5],
-                3 => [8, 1],
-                4 => [9, 2],
-                5 => [10, 3],
+                1 => [4, 9],
+                2 => [5, 8],
+                3 => [1, 7],
+                4 => [2, 6],
+                5 => [3, 10],
             ],
             // ROUND 5:
-            // Game 1: Team 1 vs Team 2
-            // Game 2: Team 3 vs Team 4
-            // Game 3: Team 6 vs Team 5
-            // Game 4: Team 8 vs Team 7
-            // Game 5: Team 10 vs Team 9
+            // Game 1: Team 5 vs Team 10
+            // Game 2: Team 1 vs Team 9
+            // Game 3: Team 2 vs Team 8
+            // Game 4: Team 3 vs Team 7
+            // Game 5: Team 4 vs Team 6
             5 => [
-                1 => [1, 2],
-                2 => [3, 4],
-                3 => [6, 5],
-                4 => [8, 7],
-                5 => [10, 9],
+                1 => [5, 10],
+                2 => [1, 9],
+                3 => [2, 8],
+                4 => [3, 7],
+                5 => [4, 6],
             ],
         ];
 
