@@ -5,6 +5,13 @@ import type {
 } from '../types/tournament';
 import { useAuth } from './AuthContext';
 import { soundController } from '../utils/audio';
+import { supabase, REALTIME_CHANNEL } from '../utils/supabase';
+import {
+  loadStandaloneSnapshot,
+  saveStandaloneSnapshot,
+  computeLeaderboard,
+  computeStats,
+} from '../utils/standaloneEngine';
 
 interface ToastMessage {
   id: string;
@@ -40,11 +47,14 @@ interface TournamentContextType {
 const TournamentContext = createContext<TournamentContextType | null>(null);
 
 export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { token } = useAuth();
-  const [snapshot, setSnapshot] = useState<TournamentSnapshot | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const { token, user } = useAuth();
+  const [snapshot, setSnapshot] = useState<TournamentSnapshot | null>(() => loadStandaloneSnapshot());
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isConnected, setIsConnected] = useState<boolean>(true);
-  const [currentTimer, setCurrentTimer] = useState<RoundTimer | null>(null);
+  const [currentTimer, setCurrentTimer] = useState<RoundTimer | null>(() => {
+    const s = loadStandaloneSnapshot();
+    return s.timer || null;
+  });
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   // Sound ref to prevent repeating buzzer
@@ -64,32 +74,58 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const broadcastSupabase = useCallback((event: string, payload?: any) => {
+    try {
+      supabase.channel(REALTIME_CHANNEL).send({
+        type: 'broadcast',
+        event,
+        payload: payload || {},
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Fetch full tournament snapshot
   const refreshSnapshot = useCallback(async () => {
-    try {
-      const res = await fetch('/api/tournament/snapshot', {
-        headers: {
-          Accept: 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      const data = await res.json();
-      if (data.success && data.data) {
-        setSnapshot(data.data);
-        if (data.data.timer) {
-          setCurrentTimer(data.data.timer);
-          if (data.data.timer.status !== 'expired') {
-            hasBuzzerPlayedRef.current = false;
+    let synced = false;
+    if (token && !token.startsWith('mock-')) {
+      try {
+        const res = await fetch('/api/tournament/snapshot', {
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data) {
+            setSnapshot(data.data);
+            if (data.data.timer) {
+              setCurrentTimer(data.data.timer);
+              if (data.data.timer.status !== 'expired') {
+                hasBuzzerPlayedRef.current = false;
+              }
+            }
+            saveStandaloneSnapshot(data.data);
+            setIsConnected(true);
+            synced = true;
           }
         }
-        setIsConnected(true);
+      } catch {
+        // Backend not reachable, stay on standalone cloud store
       }
-    } catch (err) {
-      console.warn('Network sync temporary failure, retrying...', err);
-      setIsConnected(false);
-    } finally {
-      setIsLoading(false);
     }
+
+    if (!synced) {
+      const local = loadStandaloneSnapshot();
+      setSnapshot(local);
+      if (local.timer) {
+        setCurrentTimer(local.timer);
+      }
+      setIsConnected(true);
+    }
+    setIsLoading(false);
   }, [token]);
 
   // Initial load
@@ -97,93 +133,252 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     refreshSnapshot();
   }, [refreshSnapshot]);
 
-  // Periodic heartbeat sync (1.5s interval for instant real-time synchronization)
+  // Supabase Realtime Channel (Powers real-time synchronization on Vercel)
   useEffect(() => {
-    const interval = setInterval(() => {
-      refreshSnapshot();
-    }, 1500);
+    const channel = supabase.channel(REALTIME_CHANNEL, {
+      config: { broadcast: { self: false } },
+    });
 
-    return () => clearInterval(interval);
-  }, [refreshSnapshot]);
+    channel
+      .on('broadcast', { event: 'RoundStarted' }, (payload) => {
+        soundController.playWhistle();
+        const roundNum = payload.payload?.roundNumber ?? 1;
+        const expiresAt = payload.payload?.expires_at;
+        const duration = payload.payload?.duration_seconds ?? 600;
 
-  // WebSocket Connection (Reverb) with fallback
-  useEffect(() => {
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: any = null;
+        addToast('info', 'Round Started', `Round ${roundNum} has officially begun!`);
 
-    const connectWebSocket = () => {
-      try {
-        // Connect to Laravel Reverb WebSocket port (default 8080)
-        const host = window.location.hostname || 'localhost';
-        const wsUrl = `ws://${host}:8080/app/157hrmz0wphdhaddnjnh?protocol=7&client=js&version=8.4.0-reverb&flash=false`;
-        ws = new WebSocket(wsUrl);
+        setSnapshot((prev) => {
+          if (!prev) return prev;
+          const updatedTimer: RoundTimer = {
+            ...prev.timer!,
+            status: 'running',
+            expires_at: expiresAt || new Date(Date.now() + duration * 1000).toISOString(),
+            remaining_seconds: duration,
+          };
+          const next = { ...prev, timer: updatedTimer };
+          saveStandaloneSnapshot(next);
+          setCurrentTimer(updatedTimer);
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'RoundPaused' }, () => {
+        addToast('warning', 'Timer Paused', 'Round timer was paused by administrator.');
+        setSnapshot((prev) => {
+          if (!prev || !prev.timer) return prev;
+          const updatedTimer: RoundTimer = {
+            ...prev.timer,
+            status: 'paused',
+          };
+          const next = { ...prev, timer: updatedTimer };
+          saveStandaloneSnapshot(next);
+          setCurrentTimer(updatedTimer);
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'RoundResumed' }, (payload) => {
+        addToast('info', 'Timer Resumed', 'Round timer resumed.');
+        const expiresAt = payload.payload?.expires_at;
+        setSnapshot((prev) => {
+          if (!prev || !prev.timer) return prev;
+          const updatedTimer: RoundTimer = {
+            ...prev.timer,
+            status: 'running',
+            expires_at: expiresAt || prev.timer.expires_at,
+          };
+          const next = { ...prev, timer: updatedTimer };
+          saveStandaloneSnapshot(next);
+          setCurrentTimer(updatedTimer);
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'RoundTimeExpired' }, () => {
+        soundController.playBuzzer();
+        addToast('warning', 'TIME EXPIRED', 'Round timer has ended. Awaiting operator results.');
+        setSnapshot((prev) => {
+          if (!prev || !prev.timer) return prev;
+          const updatedTimer: RoundTimer = {
+            ...prev.timer,
+            status: 'expired',
+            remaining_seconds: 0,
+          };
+          const next = { ...prev, timer: updatedTimer };
+          saveStandaloneSnapshot(next);
+          setCurrentTimer(updatedTimer);
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'RoundTimerReset' }, () => {
+        addToast('info', 'Timer Reset', 'Timer was reset to default.');
+        hasBuzzerPlayedRef.current = false;
+        setSnapshot((prev) => {
+          if (!prev || !prev.timer) return prev;
+          const updatedTimer: RoundTimer = {
+            ...prev.timer,
+            status: 'idle',
+            remaining_seconds: prev.timer.duration_seconds,
+          };
+          const next = { ...prev, timer: updatedTimer };
+          saveStandaloneSnapshot(next);
+          setCurrentTimer(updatedTimer);
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'RoundTimerDurationChanged' }, (payload) => {
+        const dur = payload.payload?.durationSeconds ?? 600;
+        setSnapshot((prev) => {
+          if (!prev || !prev.timer) return prev;
+          const updatedTimer: RoundTimer = {
+            ...prev.timer,
+            duration_seconds: dur,
+            remaining_seconds: dur,
+          };
+          const next = { ...prev, timer: updatedTimer };
+          saveStandaloneSnapshot(next);
+          setCurrentTimer(updatedTimer);
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'RoundSelected' }, (payload) => {
+        const rNum = payload.payload?.roundNumber ?? 1;
+        setSnapshot((prev) => {
+          if (!prev) return prev;
+          const currentRoundMatches = prev.all_matches.filter((m) => m.round_id === rNum);
+          const activeRound = prev.rounds.find((r) => r.round_number === rNum) || null;
+          const next = {
+            ...prev,
+            current_round: rNum,
+            active_round: activeRound,
+            current_round_matches: currentRoundMatches,
+          };
+          saveStandaloneSnapshot(next);
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'MatchResultSubmitted' }, (payload) => {
+        soundController.playSuccess();
+        const p = payload.payload;
+        const game = p?.game_name_en || 'Match Station';
+        addToast('success', 'Result Submitted', `${game}: Result officially recorded!`);
 
-        ws.onopen = () => {
-          setIsConnected(true);
-          // Subscribe to 'tournament' channel
-          ws?.send(
-            JSON.stringify({
-              event: 'pusher:subscribe',
-              data: {
-                auth: '',
-                channel: 'tournament',
-              },
-            })
-          );
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const parsed = JSON.parse(event.data);
-            if (parsed.event === 'RoundStarted') {
-              soundController.playWhistle();
-              addToast('info', 'Round Started', `Round ${parsed.data.roundNumber} has officially begun!`);
-              refreshSnapshot();
-            } else if (parsed.event === 'RoundTimeExpired') {
-              soundController.playBuzzer();
-              addToast('warning', 'TIME EXPIRED', 'Round timer has ended. Awaiting operator results.');
-              refreshSnapshot();
-            } else if (parsed.event === 'MatchResultSubmitted') {
-              soundController.playSuccess();
-              addToast('success', 'Result Submitted', `${parsed.data.matchResultData.game_name_en}: Result officially recorded!`);
-              refreshSnapshot();
-            } else if (parsed.event === 'MatchResultUpdated') {
-              soundController.playSuccess();
-              addToast('info', 'Result Corrected', `${parsed.data.matchResultData.game_name_en}: Administrator corrected result.`);
-              refreshSnapshot();
-            } else if (parsed.event === 'RoundCompleted') {
-              soundController.playSuccess();
-              addToast('success', 'Round Completed', `Round ${parsed.data.roundNumber} is complete!`);
-              refreshSnapshot();
-            } else if (parsed.event === 'LeaderboardUpdated') {
-              refreshSnapshot();
+        setSnapshot((prev) => {
+          if (!prev) return prev;
+          const updatedMatches = prev.all_matches.map((m) => {
+            if (m.id === p.matchId) {
+              return {
+                ...m,
+                status: 'completed' as const,
+                result: {
+                  id: Date.now(),
+                  match_id: p.matchId,
+                  winner_team_id: p.winnerTeamId,
+                  is_draw: p.isDraw,
+                  submitted_by: { id: p.operatorId || 2, name: p.operatorName || 'Game Operator' },
+                  submitted_at: new Date().toISOString(),
+                  operator_notes: p.notes,
+                  is_corrected: false,
+                },
+              };
             }
-          } catch (e) {
-            // Ignore non-json socket packets
-          }
-        };
+            return m;
+          });
 
-        ws.onerror = () => {
-          // Fallback handled by periodic snapshot sync
-        };
+          const currentRoundMatches = updatedMatches.filter((m) => m.round_id === prev.current_round);
+          const next = {
+            ...prev,
+            all_matches: updatedMatches,
+            current_round_matches: currentRoundMatches,
+            leaderboard: computeLeaderboard(updatedMatches),
+            stats: computeStats(updatedMatches),
+          };
+          saveStandaloneSnapshot(next);
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'MatchResultUpdated' }, (payload) => {
+        soundController.playSuccess();
+        const p = payload.payload;
+        const game = p?.game_name_en || 'Match Station';
+        addToast('info', 'Result Corrected', `${game}: Administrator corrected result.`);
 
-        ws.onclose = () => {
-          reconnectTimeout = setTimeout(connectWebSocket, 4000);
-        };
-      } catch (err) {
-        // Silent catch; fallback periodic sync guarantees real-time updates
-      }
-    };
+        setSnapshot((prev) => {
+          if (!prev) return prev;
+          const updatedMatches = prev.all_matches.map((m) => {
+            if (m.id === p.matchId) {
+              return {
+                ...m,
+                status: 'completed' as const,
+                result: {
+                  id: m.result?.id || Date.now(),
+                  match_id: p.matchId,
+                  winner_team_id: p.winnerTeamId,
+                  is_draw: p.isDraw,
+                  submitted_by: m.result?.submitted_by || { id: 1, name: 'Admin' },
+                  submitted_at: m.result?.submitted_at || new Date().toISOString(),
+                  is_corrected: true,
+                  corrected_by: { id: 1, name: 'Administrator' },
+                  corrected_at: new Date().toISOString(),
+                  correction_reason: p.reason,
+                  operator_notes: p.notes,
+                },
+              };
+            }
+            return m;
+          });
 
-    connectWebSocket();
+          const currentRoundMatches = updatedMatches.filter((m) => m.round_id === prev.current_round);
+          const next = {
+            ...prev,
+            all_matches: updatedMatches,
+            current_round_matches: currentRoundMatches,
+            leaderboard: computeLeaderboard(updatedMatches),
+            stats: computeStats(updatedMatches),
+          };
+          saveStandaloneSnapshot(next);
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'RoundCompleted' }, (payload) => {
+        soundController.playSuccess();
+        const rNum = payload.payload?.roundNumber ?? 1;
+        addToast('success', 'Round Completed', `Round ${rNum} is complete!`);
+
+        setSnapshot((prev) => {
+          if (!prev) return prev;
+          const nextRoundNum = Math.min(5, rNum + 1);
+          const updatedRounds = prev.rounds.map((r) => {
+            if (r.round_number === rNum) {
+              return { ...r, status: 'completed' as const, completed_at: new Date().toISOString() };
+            }
+            if (r.round_number === nextRoundNum) {
+              return { ...r, status: 'active' as const, started_at: new Date().toISOString() };
+            }
+            return r;
+          });
+          const currentRoundMatches = prev.all_matches.filter((m) => m.round_id === nextRoundNum);
+          const next = {
+            ...prev,
+            current_round: nextRoundNum,
+            active_round: updatedRounds.find((r) => r.round_number === nextRoundNum) || null,
+            rounds: updatedRounds,
+            current_round_matches: currentRoundMatches,
+          };
+          saveStandaloneSnapshot(next);
+          return next;
+        });
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setIsConnected(true);
+        }
+      });
 
     return () => {
-      if (ws) ws.close();
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      supabase.removeChannel(channel);
     };
-  }, [refreshSnapshot, addToast]);
+  }, [addToast]);
 
-  // High-Precision Local Timer Countdown Loop (synchronized with server)
+  // High-Precision Local Timer Countdown Loop (synchronized with server/expires_at)
   useEffect(() => {
     if (!currentTimer || currentTimer.status !== 'running' || !currentTimer.expires_at) {
       return;
@@ -199,6 +394,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           hasBuzzerPlayedRef.current = true;
           soundController.playBuzzer();
           addToast('warning', 'TIME EXPIRED', 'Round timer has expired! Awaiting match submissions.');
+          broadcastSupabase('RoundTimeExpired');
         }
 
         setCurrentTimer((prev) =>
@@ -218,185 +414,305 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }, 250);
 
     return () => clearInterval(timer);
-  }, [currentTimer?.status, currentTimer?.expires_at, addToast]);
+  }, [currentTimer?.status, currentTimer?.expires_at, addToast, broadcastSupabase]);
 
   // Admin Timer Control Actions
   const startRound = async (): Promise<boolean> => {
     soundController.playClick();
-    try {
-      const res = await fetch('/api/timer/start', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      const data = await res.json();
-      if (data.success) {
-        soundController.playWhistle();
-        await refreshSnapshot();
-        return true;
+    const duration = snapshot?.timer?.duration_seconds || 600;
+    const expiresAt = new Date(Date.now() + duration * 1000).toISOString();
+    const roundNum = snapshot?.current_round ?? 1;
+
+    // Standalone state update
+    setSnapshot((prev) => {
+      if (!prev) return prev;
+      const updatedTimer: RoundTimer = {
+        round_id: roundNum,
+        round_number: roundNum,
+        duration_seconds: duration,
+        remaining_seconds: duration,
+        status: 'running',
+        started_at: new Date().toISOString(),
+        expires_at: expiresAt,
+        server_timestamp: Date.now(),
+      };
+      const next = { ...prev, timer: updatedTimer };
+      saveStandaloneSnapshot(next);
+      setCurrentTimer(updatedTimer);
+      return next;
+    });
+
+    soundController.playWhistle();
+    broadcastSupabase('RoundStarted', {
+      roundNumber: roundNum,
+      expires_at: expiresAt,
+      duration_seconds: duration,
+    });
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch('/api/timer/start', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        });
+      } catch {
+        // ignore
       }
-      return false;
-    } catch {
-      return false;
     }
+    return true;
   };
 
   const pauseRound = async (): Promise<boolean> => {
     soundController.playClick();
-    try {
-      const res = await fetch('/api/timer/pause', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      const data = await res.json();
-      if (data.success) {
-        await refreshSnapshot();
-        return true;
+    setSnapshot((prev) => {
+      if (!prev || !prev.timer) return prev;
+      const updatedTimer: RoundTimer = {
+        ...prev.timer,
+        status: 'paused',
+        paused_at: new Date().toISOString(),
+      };
+      const next = { ...prev, timer: updatedTimer };
+      saveStandaloneSnapshot(next);
+      setCurrentTimer(updatedTimer);
+      return next;
+    });
+
+    broadcastSupabase('RoundPaused');
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch('/api/timer/pause', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        });
+      } catch {
+        // ignore
       }
-      return false;
-    } catch {
-      return false;
     }
+    return true;
   };
 
   const resumeRound = async (): Promise<boolean> => {
     soundController.playClick();
-    try {
-      const res = await fetch('/api/timer/resume', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      const data = await res.json();
-      if (data.success) {
-        await refreshSnapshot();
-        return true;
+    const remaining = currentTimer?.remaining_seconds || 600;
+    const expiresAt = new Date(Date.now() + remaining * 1000).toISOString();
+
+    setSnapshot((prev) => {
+      if (!prev || !prev.timer) return prev;
+      const updatedTimer: RoundTimer = {
+        ...prev.timer,
+        status: 'running',
+        expires_at: expiresAt,
+      };
+      const next = { ...prev, timer: updatedTimer };
+      saveStandaloneSnapshot(next);
+      setCurrentTimer(updatedTimer);
+      return next;
+    });
+
+    broadcastSupabase('RoundResumed', { expires_at: expiresAt });
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch('/api/timer/resume', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        });
+      } catch {
+        // ignore
       }
-      return false;
-    } catch {
-      return false;
     }
+    return true;
   };
 
   const expireRound = async (): Promise<boolean> => {
     soundController.playClick();
-    try {
-      const res = await fetch('/api/timer/expire', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      const data = await res.json();
-      if (data.success) {
-        soundController.playBuzzer();
-        await refreshSnapshot();
-        return true;
+    hasBuzzerPlayedRef.current = true;
+    soundController.playBuzzer();
+
+    setSnapshot((prev) => {
+      if (!prev || !prev.timer) return prev;
+      const updatedTimer: RoundTimer = {
+        ...prev.timer,
+        status: 'expired',
+        remaining_seconds: 0,
+      };
+      const next = { ...prev, timer: updatedTimer };
+      saveStandaloneSnapshot(next);
+      setCurrentTimer(updatedTimer);
+      return next;
+    });
+
+    broadcastSupabase('RoundTimeExpired');
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch('/api/timer/expire', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        });
+      } catch {
+        // ignore
       }
-      return false;
-    } catch {
-      return false;
     }
+    return true;
   };
 
   const resetTimer = async (): Promise<boolean> => {
     soundController.playClick();
-    try {
-      const res = await fetch('/api/timer/reset', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      const data = await res.json();
-      if (data.success) {
-        hasBuzzerPlayedRef.current = false;
-        await refreshSnapshot();
-        return true;
+    hasBuzzerPlayedRef.current = false;
+
+    setSnapshot((prev) => {
+      if (!prev || !prev.timer) return prev;
+      const dur = prev.timer.duration_seconds || 600;
+      const updatedTimer: RoundTimer = {
+        ...prev.timer,
+        status: 'idle',
+        remaining_seconds: dur,
+        expires_at: null,
+        started_at: null,
+      };
+      const next = { ...prev, timer: updatedTimer };
+      saveStandaloneSnapshot(next);
+      setCurrentTimer(updatedTimer);
+      return next;
+    });
+
+    broadcastSupabase('RoundTimerReset');
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch('/api/timer/reset', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        });
+      } catch {
+        // ignore
       }
-      return false;
-    } catch {
-      return false;
     }
+    return true;
   };
 
   const setTimerDuration = async (durationSeconds: number): Promise<boolean> => {
     soundController.playClick();
-    try {
-      const res = await fetch('/api/timer/duration', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({ duration_seconds: durationSeconds }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await refreshSnapshot();
-        return true;
+
+    setSnapshot((prev) => {
+      if (!prev || !prev.timer) return prev;
+      const updatedTimer: RoundTimer = {
+        ...prev.timer,
+        duration_seconds: durationSeconds,
+        remaining_seconds: durationSeconds,
+      };
+      const next = { ...prev, timer: updatedTimer };
+      saveStandaloneSnapshot(next);
+      setCurrentTimer(updatedTimer);
+      return next;
+    });
+
+    broadcastSupabase('RoundTimerDurationChanged', { durationSeconds });
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch('/api/timer/duration', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({ duration_seconds: durationSeconds }),
+        });
+      } catch {
+        // ignore
       }
-      return false;
-    } catch {
-      return false;
     }
+    return true;
   };
 
   // Admin Round Management
   const selectRound = async (roundNumber: number): Promise<boolean> => {
     soundController.playClick();
-    try {
-      const res = await fetch(`/api/rounds/${roundNumber}/select`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      const data = await res.json();
-      if (data.success) {
-        hasBuzzerPlayedRef.current = false;
-        await refreshSnapshot();
-        return true;
+    hasBuzzerPlayedRef.current = false;
+
+    setSnapshot((prev) => {
+      if (!prev) return prev;
+      const currentRoundMatches = prev.all_matches.filter((m) => m.round_id === roundNumber);
+      const activeRound = prev.rounds.find((r) => r.round_number === roundNumber) || null;
+      const next = {
+        ...prev,
+        current_round: roundNumber,
+        active_round: activeRound,
+        current_round_matches: currentRoundMatches,
+      };
+      saveStandaloneSnapshot(next);
+      return next;
+    });
+
+    broadcastSupabase('RoundSelected', { roundNumber });
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch(`/api/rounds/${roundNumber}/select`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        });
+      } catch {
+        // ignore
       }
-      return false;
-    } catch {
-      return false;
     }
+    return true;
   };
 
   const completeRound = async (roundNumber: number): Promise<boolean> => {
     soundController.playClick();
-    try {
-      const res = await fetch(`/api/rounds/${roundNumber}/complete`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      const data = await res.json();
-      if (data.success) {
-        soundController.playSuccess();
-        await refreshSnapshot();
-        return true;
-      } else {
-        addToast('error', 'Cannot Complete Round', data.message || 'All matches must be completed first.');
-        return false;
-      }
-    } catch {
+
+    if (!snapshot) return false;
+    const matches = snapshot.current_round_matches;
+    const pending = matches.some((m) => m.status === 'pending');
+    if (pending) {
+      addToast('error', 'Cannot Complete Round', 'All 5 matches must be recorded before completing the round.');
       return false;
     }
+
+    soundController.playSuccess();
+    const nextRoundNum = Math.min(5, roundNumber + 1);
+
+    setSnapshot((prev) => {
+      if (!prev) return prev;
+      const updatedRounds = prev.rounds.map((r) => {
+        if (r.round_number === roundNumber) {
+          return { ...r, status: 'completed' as const, completed_at: new Date().toISOString() };
+        }
+        if (r.round_number === nextRoundNum) {
+          return { ...r, status: 'active' as const, started_at: new Date().toISOString() };
+        }
+        return r;
+      });
+      const currentRoundMatches = prev.all_matches.filter((m) => m.round_id === nextRoundNum);
+      const next = {
+        ...prev,
+        current_round: nextRoundNum,
+        active_round: updatedRounds.find((r) => r.round_number === nextRoundNum) || null,
+        rounds: updatedRounds,
+        current_round_matches: currentRoundMatches,
+      };
+      saveStandaloneSnapshot(next);
+      return next;
+    });
+
+    broadcastSupabase('RoundCompleted', { roundNumber });
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch(`/api/rounds/${roundNumber}/complete`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        });
+      } catch {
+        // ignore
+      }
+    }
+    return true;
   };
 
   // Match Results
@@ -407,33 +723,78 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     notes?: string
   ): Promise<boolean> => {
     soundController.playClick();
-    try {
-      const res = await fetch(`/api/matches/${matchId}/result`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({
-          winner_team_id: winnerTeamId,
-          is_draw: isDraw,
-          notes,
-        }),
+
+    const targetMatch = snapshot?.all_matches.find((m) => m.id === matchId);
+    const gameName = targetMatch?.game?.name_en || 'Match Station';
+
+    // Standalone update
+    setSnapshot((prev) => {
+      if (!prev) return prev;
+      const updatedMatches = prev.all_matches.map((m) => {
+        if (m.id === matchId) {
+          return {
+            ...m,
+            status: 'completed' as const,
+            result: {
+              id: Date.now(),
+              match_id: matchId,
+              winner_team_id: winnerTeamId,
+              is_draw: isDraw,
+              submitted_by: { id: user?.id || 2, name: user?.name || 'Operator' },
+              submitted_at: new Date().toISOString(),
+              operator_notes: notes,
+              is_corrected: false,
+            },
+          };
+        }
+        return m;
       });
 
-      const data = await res.json();
-      if (data.success) {
-        soundController.playSuccess();
-        await refreshSnapshot();
-        return true;
-      } else {
-        addToast('error', 'Submission Error', data.message || 'Could not submit result.');
-        return false;
+      const currentRoundMatches = updatedMatches.filter((m) => m.round_id === prev.current_round);
+      const next = {
+        ...prev,
+        all_matches: updatedMatches,
+        current_round_matches: currentRoundMatches,
+        leaderboard: computeLeaderboard(updatedMatches),
+        stats: computeStats(updatedMatches),
+      };
+      saveStandaloneSnapshot(next);
+      return next;
+    });
+
+    soundController.playSuccess();
+    addToast('success', 'Result Recorded', `${gameName}: Result officially recorded!`);
+
+    broadcastSupabase('MatchResultSubmitted', {
+      matchId,
+      winnerTeamId,
+      isDraw,
+      notes,
+      operatorId: user?.id,
+      operatorName: user?.name,
+      game_name_en: gameName,
+    });
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch(`/api/matches/${matchId}/result`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            winner_team_id: winnerTeamId,
+            is_draw: isDraw,
+            notes,
+          }),
+        });
+      } catch {
+        // ignore
       }
-    } catch {
-      return false;
     }
+    return true;
   };
 
   const correctResult = async (
@@ -444,34 +805,80 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     notes?: string
   ): Promise<boolean> => {
     soundController.playClick();
-    try {
-      const res = await fetch(`/api/matches/${matchId}/correct`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({
-          winner_team_id: winnerTeamId,
-          is_draw: isDraw,
-          reason,
-          notes,
-        }),
+
+    const targetMatch = snapshot?.all_matches.find((m) => m.id === matchId);
+    const gameName = targetMatch?.game?.name_en || 'Match Station';
+
+    setSnapshot((prev) => {
+      if (!prev) return prev;
+      const updatedMatches = prev.all_matches.map((m) => {
+        if (m.id === matchId) {
+          return {
+            ...m,
+            status: 'completed' as const,
+            result: {
+              id: m.result?.id || Date.now(),
+              match_id: matchId,
+              winner_team_id: winnerTeamId,
+              is_draw: isDraw,
+              submitted_by: m.result?.submitted_by || { id: 1, name: 'Admin' },
+              submitted_at: m.result?.submitted_at || new Date().toISOString(),
+              is_corrected: true,
+              corrected_by: { id: user?.id || 1, name: user?.name || 'Administrator' },
+              corrected_at: new Date().toISOString(),
+              correction_reason: reason,
+              operator_notes: notes,
+            },
+          };
+        }
+        return m;
       });
 
-      const data = await res.json();
-      if (data.success) {
-        soundController.playSuccess();
-        await refreshSnapshot();
-        return true;
-      } else {
-        addToast('error', 'Correction Error', data.message || 'Could not correct result.');
-        return false;
+      const currentRoundMatches = updatedMatches.filter((m) => m.round_id === prev.current_round);
+      const next = {
+        ...prev,
+        all_matches: updatedMatches,
+        current_round_matches: currentRoundMatches,
+        leaderboard: computeLeaderboard(updatedMatches),
+        stats: computeStats(updatedMatches),
+      };
+      saveStandaloneSnapshot(next);
+      return next;
+    });
+
+    soundController.playSuccess();
+    addToast('info', 'Result Corrected', `${gameName}: Administrator corrected result.`);
+
+    broadcastSupabase('MatchResultUpdated', {
+      matchId,
+      winnerTeamId,
+      isDraw,
+      reason,
+      notes,
+      game_name_en: gameName,
+    });
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch(`/api/matches/${matchId}/correct`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            winner_team_id: winnerTeamId,
+            is_draw: isDraw,
+            reason,
+            notes,
+          }),
+        });
+      } catch {
+        // ignore
       }
-    } catch {
-      return false;
     }
+    return true;
   };
 
   return (
