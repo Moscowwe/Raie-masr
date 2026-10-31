@@ -1,0 +1,333 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+
+type Language = 'en' | 'ar';
+
+interface Translations {
+  [key: string]: {
+    en: string;
+    ar: string;
+  };
+}
+
+export const translations: Translations = {
+  // App Title & Tagline
+  app_title: {
+    en: 'COMPETITION CONTROL CENTER',
+    ar: 'مركز التحكم في المنافسات',
+  },
+  app_tagline: {
+    en: 'Real-Time Tournament Management System',
+    ar: 'منظومة إدارة البطولات والمنافسات الحية',
+  },
+  // Navigation / Views
+  view_admin: {
+    en: 'Control Room',
+    ar: 'غرفة التحكم (المسؤول)',
+  },
+  view_operator: {
+    en: 'Operator Dashboard',
+    ar: 'لوحة المشغل',
+  },
+  view_public: {
+    en: 'Public Arena Screen',
+    ar: 'شاشة العرض العامة (TV)',
+  },
+  // Central Timer
+  central_timer: {
+    en: 'Central Round Timer',
+    ar: 'المؤقت المركزي للجولة',
+  },
+  time_expired: {
+    en: 'TIME EXPIRED',
+    ar: 'انتهى الوقت',
+  },
+  awaiting_results: {
+    en: 'Awaiting Results',
+    ar: 'في انتظار النتائج',
+  },
+  round_active: {
+    en: 'Round Active',
+    ar: 'الجولة نشطة',
+  },
+  round_paused: {
+    en: 'Timer Paused',
+    ar: 'المؤقت متوقف مؤقتاً',
+  },
+  timer_idle: {
+    en: 'Timer Ready',
+    ar: 'المؤقت جاهز',
+  },
+  start_round: {
+    en: 'START ROUND',
+    ar: 'بدء الجولة',
+  },
+  pause_timer: {
+    en: 'PAUSE',
+    ar: 'إيقاف مؤقت',
+  },
+  resume_timer: {
+    en: 'RESUME',
+    ar: 'استئناف',
+  },
+  end_round_timer: {
+    en: 'END ROUND',
+    ar: 'إنهاء الجولة',
+  },
+  reset_timer: {
+    en: 'RESET TIMER',
+    ar: 'إعادة ضبط المؤقت',
+  },
+  set_duration: {
+    en: 'Set Duration',
+    ar: 'تحديد المدة',
+  },
+  duration_minutes: {
+    en: 'Duration (Minutes)',
+    ar: 'المدة (بالدقائق)',
+  },
+  // Tournament Stats
+  stats_teams: {
+    en: 'Total Teams',
+    ar: 'إجمالي الفرق',
+  },
+  stats_games: {
+    en: 'Game Stations',
+    ar: 'محطات الألعاب',
+  },
+  stats_rounds: {
+    en: 'Total Rounds',
+    ar: 'إجمالي الجولات',
+  },
+  stats_current_round: {
+    en: 'Current Round',
+    ar: 'الجولة الحالية',
+  },
+  stats_completed: {
+    en: 'Completed',
+    ar: 'المكتملة',
+  },
+  stats_in_progress: {
+    en: 'In Progress',
+    ar: 'جارية الآن',
+  },
+  stats_pending: {
+    en: 'Pending',
+    ar: 'في الانتظار',
+  },
+  // Rounds
+  round: {
+    en: 'Round',
+    ar: 'الجولة',
+  },
+  approve_round: {
+    en: 'Approve & Complete Round',
+    ar: 'اعتماد وإنهاء الجولة',
+  },
+  round_completed_success: {
+    en: 'Round marked complete! Next round is now ready.',
+    ar: 'تم اعتماد الجولة بنجاح! الجولة التالية جاهزة الآن.',
+  },
+  pending_matches_warning: {
+    en: 'All 5 matches must have submitted results before completing the round.',
+    ar: 'يجب تسجيل نتائج جميع المباريات الخمس قبل إنهاء الجولة.',
+  },
+  // Operator Match Results
+  team_a_wins: {
+    en: 'TEAM A WINS',
+    ar: 'فوز الفريق الأول',
+  },
+  team_b_wins: {
+    en: 'TEAM B WINS',
+    ar: 'فوز الفريق الثاني',
+  },
+  draw: {
+    en: 'DRAW',
+    ar: 'تعادل',
+  },
+  submit_result_title: {
+    en: 'Submit Official Result',
+    ar: 'تسجيل النتيجة الرسمية',
+  },
+  confirm_result_desc: {
+    en: 'Are you sure you want to submit this result? Once submitted, it cannot be modified by the operator.',
+    ar: 'هل أنت متأكد من تسجيل هذه النتيجة؟ بعد التسجيل لا يمكن للمشغل تعديلها نهائياً.',
+  },
+  confirm_button: {
+    en: 'Confirm & Broadcast',
+    ar: 'تأكيد وبث النتيجة فوراً',
+  },
+  cancel: {
+    en: 'Cancel',
+    ar: 'إلغاء',
+  },
+  result_submitted_badge: {
+    en: 'Result Officially Submitted',
+    ar: 'تم تسجيل النتيجة رسمياً',
+  },
+  submitted_by: {
+    en: 'Submitted By',
+    ar: 'سُجلت بواسطة',
+  },
+  submitted_at: {
+    en: 'Submission Time',
+    ar: 'وقت التسجيل',
+  },
+  locked_operator_note: {
+    en: 'Result is locked. Only the Main Administrator can correct this result.',
+    ar: 'النتيجة مقفلة. فقط المسؤول الرئيسي يمكنه تعديلها.',
+  },
+  optional_notes: {
+    en: 'Operator Notes (Optional)',
+    ar: 'ملاحظات المشغل (اختياري)',
+  },
+  notes_placeholder: {
+    en: 'Add referee notes or match observations...',
+    ar: 'أضف ملاحظات الحكم أو ملابسات النتيجة...',
+  },
+  // Admin Corrections
+  correct_result_btn: {
+    en: 'Correct Result',
+    ar: 'تعديل النتيجة (إداري)',
+  },
+  correct_modal_title: {
+    en: 'Administrative Result Correction',
+    ar: 'تعديل النتيجة من قبل المسؤول الرئيسي',
+  },
+  correction_reason: {
+    en: 'Reason for Correction (Mandatory Audit)',
+    ar: 'سبب التعديل (إلزامي للتوثيق والتدقيق)',
+  },
+  correction_reason_placeholder: {
+    en: 'Specify video review, referee error, or rule clarification...',
+    ar: 'اذكر سبب التعديل (مراجعة الفيديو، خطأ تحكيمي، قرار إداري)...',
+  },
+  corrected_badge: {
+    en: 'Corrected by Admin',
+    ar: 'معدلة إدارياً',
+  },
+  // Leaderboard
+  leaderboard_title: {
+    en: 'LIVE TOURNAMENT LEADERBOARD',
+    ar: 'جدول الترتيب العام المباشر',
+  },
+  rank: {
+    en: 'Rank',
+    ar: 'الترتيب',
+  },
+  team: {
+    en: 'Team',
+    ar: 'الفريق',
+  },
+  points: {
+    en: 'Points',
+    ar: 'النقاط',
+  },
+  wins_short: {
+    en: 'W',
+    ar: 'فوز',
+  },
+  draws_short: {
+    en: 'D',
+    ar: 'تعادل',
+  },
+  losses_short: {
+    en: 'L',
+    ar: 'خسارة',
+  },
+  played_short: {
+    en: 'P',
+    ar: 'لعب',
+  },
+  remaining_short: {
+    en: 'Rem',
+    ar: 'متبقي',
+  },
+  scoring_rule_notice: {
+    en: 'Official Scoring: Win = 1 Pt | Draw = 0 Pt | Loss = 0 Pt',
+    ar: 'نظام النقاط الرسمي: الفوز = 1 نقطة | التعادل = 0 نقطة | الخسارة = 0 نقطة',
+  },
+  // Audit Log & Activity
+  audit_feed: {
+    en: 'Live Activity Audit Log',
+    ar: 'سجل العمليات والتدقيق الحي',
+  },
+  // Authentication & Demo
+  login: {
+    en: 'Sign In',
+    ar: 'تسجيل الدخول',
+  },
+  logout: {
+    en: 'Sign Out',
+    ar: 'تسجيل الخروج',
+  },
+  quick_switch: {
+    en: 'Switch Role (Demo)',
+    ar: 'تبديل الحساب (تجريبي)',
+  },
+  logged_in_as: {
+    en: 'Active Account',
+    ar: 'الحساب النشط',
+  },
+  // Real-time Connection
+  connected: {
+    en: 'LIVE SYNC',
+    ar: 'مزامنة حية',
+  },
+  connecting: {
+    en: 'Connecting...',
+    ar: 'جارٍ الاتصال...',
+  },
+};
+
+interface LanguageContextType {
+  language: Language;
+  toggleLanguage: () => void;
+  setLanguage: (lang: Language) => void;
+  t: (key: string) => string;
+  isRtl: boolean;
+}
+
+const LanguageContext = createContext<LanguageContextType | null>(null);
+
+export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [language, setLangState] = useState<Language>(() => {
+    return (localStorage.getItem('ccc_language') as Language) || 'ar'; // Default Arabic as requested
+  });
+
+  const isRtl = language === 'ar';
+
+  useEffect(() => {
+    localStorage.setItem('ccc_language', language);
+    document.documentElement.lang = language;
+    document.documentElement.dir = isRtl ? 'rtl' : 'ltr';
+  }, [language, isRtl]);
+
+  const toggleLanguage = () => {
+    setLangState((prev) => (prev === 'en' ? 'ar' : 'en'));
+  };
+
+  const setLanguage = (lang: Language) => {
+    setLangState(lang);
+  };
+
+  const t = (key: string): string => {
+    if (translations[key]) {
+      return translations[key][language] || key;
+    }
+    return key;
+  };
+
+  return (
+    <LanguageContext.Provider value={{ language, toggleLanguage, setLanguage, t, isRtl }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+};
+
+export const useLanguage = () => {
+  const context = useContext(LanguageContext);
+  if (!context) {
+    throw new Error('useLanguage must be used within a LanguageProvider');
+  }
+  return context;
+};

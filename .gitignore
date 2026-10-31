@@ -1,0 +1,40 @@
+# Dependencies
+/backend/vendor/
+/frontend/node_modules/
+
+# Environment files
+/backend/.env
+/backend/.env.backup
+/backend/.env.production
+/frontend/.env.local
+/frontend/.env.*.local
+
+# Build output
+/frontend/dist/
+/frontend/dist-ssr/
+
+# SQLite Database files (generated at runtime)
+/backend/database/*.sqlite
+/backend/database/*.sqlite-journal
+/backend/database/*.sqlite-shm
+/backend/database/*.sqlite-wal
+
+# Storage logs and framework cache
+/backend/storage/*.key
+/backend/storage/app/*
+!/backend/storage/app/.gitignore
+/backend/storage/framework/cache/*
+!/backend/storage/framework/cache/.gitignore
+/backend/storage/framework/sessions/*
+!/backend/storage/framework/sessions/.gitignore
+/backend/storage/framework/views/*
+!/backend/storage/framework/views/.gitignore
+/backend/storage/logs/*
+!/backend/storage/logs/.gitignore
+
+# System files
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/

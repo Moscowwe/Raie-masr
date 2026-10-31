@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #0B0E14;
+    --bg-card: #12161F;
+    --bg-elevated: #1A202C;
+    --accent-blue: #0066FF;
+    --accent-cyan: #00D2FF;
+    --status-active: #F59E0B;
+    --status-completed: #10B981;
+    --status-expired: #EF4444;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: #F8FAFC;
+    font-family: 'Outfit', sans-serif;
+  }
+
+  [dir="rtl"] body {
+    font-family: 'Cairo', sans-serif;
+  }
+}
+
+.font-mono-esports {
+  font-family: 'Chakra Petch', ui-monospace, monospace;
+}
+
+.font-arabic {
+  font-family: 'Cairo', sans-serif;
+}
+
+/* Glowing Neon Accents */
+.glow-blue {
+  box-shadow: 0 0 25px rgba(0, 102, 255, 0.45);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 25px rgba(0, 210, 255, 0.4);
+}
+
+.glow-green {
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.45);
+}
+
+.glow-orange {
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.45);
+}
+
+.glow-red {
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.45);
+}
+
+/* Subtle scanline and grid background effects */
+.bg-grid-pattern {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
+/* Pulsing radar animation */
+@keyframes radar-pulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 1; filter: brightness(1.2); }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.animate-radar {
+  animation: radar-pulse 2s infinite ease-in-out;
+}
+
+/* Smooth custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0B0E14;
+}
+::-webkit-scrollbar-thumb {
+  background: #232B3B;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0066FF;
+}
