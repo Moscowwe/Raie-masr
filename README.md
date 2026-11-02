@@ -18,9 +18,11 @@ A production-ready, full-stack tournament management system designed for esports
   - Results can be submitted at **any time** (before timer expires, at expiry, or after expiry).
   - Submitting result for one game does **not** stop or affect the central timer or other games.
   - Once submitted, results are immutable for the operator. Only the Administrator can correct submitted results with mandatory audit reasons.
-- **Win-Based Scoring & Live Leaderboard**:
-  - Win = 1 point, Draw = 0 points, Loss = 0 points.
+- **Standard Official Scoring (3-1-0) & Live Leaderboard**:
+  - **Win = 3 points**, **Draw = 1 point each**, **Loss = 0 points**.
   - Live recalculation and broadcast after every submitted result or admin correction.
+  - Manual admin points adjustment (bonus/penalty with audit reason) directly from the Main Dashboard.
+  - Instant full tournament restart / reset (zeros all 25 matches, rounds, timer, and leaderboard).
   - Tracks: Rank, Team Name, Points, Wins, Draws, Losses, Matches Played, Matches Remaining.
 - **Three Specialized UI Interfaces**:
   1. **Control Room (Admin Dashboard - Desktop-First)**: Live overview of all 5 stations, central timer, round transitions, tournament statistics, and activity audit feed.

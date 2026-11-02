@@ -259,8 +259,28 @@ export const translations: Translations = {
     ar: 'متبقي',
   },
   scoring_rule_notice: {
-    en: 'Official Scoring: Win = 1 Pt | Draw = 0 Pt | Loss = 0 Pt',
-    ar: 'نظام النقاط الرسمي: الفوز = 1 نقطة | التعادل = 0 نقطة | الخسارة = 0 نقطة',
+    en: 'Official Scoring: Win = 3 Pts | Draw = 1 Pt | Loss = 0 Pt',
+    ar: 'نظام النقاط الرسمي: الفوز = 3 نقاط | التعادل = 1 نقطة | الخسارة = 0 نقطة',
+  },
+  reset_tournament: {
+    en: 'Reset Tournament',
+    ar: 'تصفير البطولة بالكامل',
+  },
+  reset_confirm_title: {
+    en: 'Restart Entire Tournament?',
+    ar: 'تصفير وإعادة تعيين البطولة من البداية؟',
+  },
+  reset_confirm_desc: {
+    en: 'This will wipe all 25 match results, reset the leaderboard and timer, and return to Round 1.',
+    ar: 'سيتم مسح جميع نتائج الجولات (25 مباراة)، وتصفير جدول الترتيب والنقاط والمؤقت والبدء من الجولة 1.',
+  },
+  adjust_points_btn: {
+    en: 'Adjust Points',
+    ar: 'إضافة / خصم نقاط',
+  },
+  adjust_points_title: {
+    en: 'Manual Points Adjustment',
+    ar: 'إضافة / خصم نقاط لفريق',
   },
   // Audit Log & Activity
   audit_feed: {

@@ -62,9 +62,11 @@ class LeaderboardService
             if ($result->is_draw) {
                 if (isset($stats[$teamAId])) {
                     $stats[$teamAId]['draws']++;
+                    $stats[$teamAId]['total_points'] += 1; // Draw = 1 point each
                 }
                 if (isset($stats[$teamBId])) {
                     $stats[$teamBId]['draws']++;
+                    $stats[$teamBId]['total_points'] += 1; // Draw = 1 point each
                 }
             } else if ($result->winner_team_id) {
                 $winnerId = $result->winner_team_id;
@@ -72,10 +74,11 @@ class LeaderboardService
 
                 if (isset($stats[$winnerId])) {
                     $stats[$winnerId]['wins']++;
-                    $stats[$winnerId]['total_points'] += 1; // Win = 1 point
+                    $stats[$winnerId]['total_points'] += 3; // Win = 3 points
                 }
                 if (isset($stats[$loserId])) {
                     $stats[$loserId]['losses']++;
+                    // Loss = 0 points
                 }
             }
         }

@@ -91,6 +91,8 @@ export interface LeaderboardEntry {
   team_code: string;
   team_color: string;
   total_points: number;
+  match_points?: number;
+  bonus_points?: number;
   wins: number;
   draws: number;
   losses: number;
@@ -135,5 +137,6 @@ export interface TournamentSnapshot {
   all_matches: TournamentMatch[];
   leaderboard: LeaderboardEntry[];
   recent_activities: ActivityLog[];
+  point_adjustments?: Record<number, number>;
   server_time: string;
 }

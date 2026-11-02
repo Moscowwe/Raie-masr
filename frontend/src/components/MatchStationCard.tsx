@@ -202,7 +202,7 @@ export const MatchStationCard: React.FC<MatchStationCardProps> = ({
         {isCompleted && isDraw && (
           <div className="mt-3 py-1.5 px-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center">
             <span className="text-xs font-black font-mono-esports text-yellow-400 uppercase tracking-widest">
-              🤝 {t('draw')} (0 - 0 PTS)
+              🤝 {t('draw')} (1 - 1 PTS)
             </span>
           </div>
         )}

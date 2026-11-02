@@ -96,10 +96,10 @@ class TournamentFlowTest extends TestCase
         $timerResponse = $this->getJson('/api/timer/status');
         $this->assertEquals('running', $timerResponse->json('timer.status'));
 
-        // Leaderboard must immediately award Team 1 = 1 point
+        // Leaderboard must immediately award Team 1 = 3 points (Win = 3)
         $lbResponse = $this->getJson('/api/tournament/leaderboard');
         $team1Row = collect($lbResponse->json('leaderboard'))->firstWhere('team_id', $match1->team_a_id);
-        $this->assertEquals(1, $team1Row['total_points']);
+        $this->assertEquals(3, $team1Row['total_points']);
         $this->assertEquals(1, $team1Row['wins']);
     }
 
@@ -169,10 +169,10 @@ class TournamentFlowTest extends TestCase
         $this->assertEquals($this->admin->id, $result->corrected_by_user_id);
         $this->assertEquals('Referee review overturned final goal.', $result->correction_reason);
 
-        // Leaderboard must recalculate automatically (Team 1 now has 0 points, 1 draw)
+        // Leaderboard must recalculate automatically (Team 1 now has 1 point, 1 draw)
         $lbResponse = $this->getJson('/api/tournament/leaderboard');
         $team1Row = collect($lbResponse->json('leaderboard'))->firstWhere('team_id', $match1->team_a_id);
-        $this->assertEquals(0, $team1Row['total_points']);
+        $this->assertEquals(1, $team1Row['total_points']);
         $this->assertEquals(1, $team1Row['draws']);
     }
 

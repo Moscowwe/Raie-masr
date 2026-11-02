@@ -48,8 +48,7 @@ export const OperatorView: React.FC = () => {
 
   // Strict check: Is this round locked because previous rounds have incomplete matches?
   const isRoundLocked = activeMatch && activeMatch.round_id > 1
-    ? (snapshot?.all_matches.some((m) => m.round_id < activeMatch.round_id && m.status !== 'completed') ||
-       snapshot?.rounds.find((r) => r.round_number === activeMatch.round_id - 1)?.status !== 'completed')
+    ? snapshot?.all_matches.some((m) => m.round_id < activeMatch.round_id && m.status !== 'completed') ?? false
     : false;
 
   const gameName = language === 'ar' ? game?.name_ar : game?.name_en;
@@ -329,7 +328,7 @@ export const OperatorView: React.FC = () => {
                 <span>{teamAName} {t('wins_short')}</span>
               </span>
               <span className="text-sm font-mono-esports bg-black/30 px-3 py-1 rounded-xl">
-                {isRoundLocked ? 'LOCKED' : '+1 PT'}
+                {isRoundLocked ? 'LOCKED' : '+3 PTS'}
               </span>
             </button>
 
@@ -348,7 +347,7 @@ export const OperatorView: React.FC = () => {
                 <span>{teamBName} {t('wins_short')}</span>
               </span>
               <span className="text-sm font-mono-esports bg-black/30 px-3 py-1 rounded-xl">
-                {isRoundLocked ? 'LOCKED' : '+1 PT'}
+                {isRoundLocked ? 'LOCKED' : '+3 PTS'}
               </span>
             </button>
 
@@ -366,8 +365,8 @@ export const OperatorView: React.FC = () => {
                 {isRoundLocked && <Lock className="w-4 h-4 text-amber-400 shrink-0" />}
                 <span>🤝 {t('draw')}</span>
               </span>
-              <span className="text-xs font-mono-esports bg-black/40 px-2.5 py-1 rounded-lg text-slate-300">
-                {isRoundLocked ? 'LOCKED' : '0 PTS'}
+              <span className="text-xs font-mono-esports bg-black/40 px-2.5 py-1 rounded-lg text-yellow-300">
+                {isRoundLocked ? 'LOCKED' : '+1 PT (1 - 1)'}
               </span>
             </button>
           </div>

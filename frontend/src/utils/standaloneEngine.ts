@@ -10,7 +10,16 @@ import type {
   TournamentStats,
 } from '../types/tournament';
 
-const STORAGE_KEY = 'ccc_tournament_state_v5';
+const STORAGE_KEY = 'ccc_tournament_state_v6';
+
+export function isRoundLocked(
+  roundNumber: number,
+  allMatches: TournamentMatch[]
+): boolean {
+  if (roundNumber <= 1) return false;
+  // Round N is locked ONLY if any match in previous rounds (1 to N-1) is not completed
+  return allMatches.some((m) => m.round_id < roundNumber && m.status !== 'completed');
+}
 
 export const INITIAL_TEAMS: Team[] = [
   { id: 1, name: 'Team 1', name_ar: 'الفريق 1', code: 'T1', color: '#00D2FF' },
@@ -81,7 +90,10 @@ const SCHEDULE_MAP: Record<number, Record<number, [number, number]>> = {
   5: { 1: [5, 10], 2: [1, 9], 3: [2, 8], 4: [3, 7], 5: [4, 6] },
 };
 
-export function computeLeaderboard(matches: TournamentMatch[]): LeaderboardEntry[] {
+export function computeLeaderboard(
+  matches: TournamentMatch[],
+  pointAdjustments: Record<number, number> = {}
+): LeaderboardEntry[] {
   const table: Record<number, { wins: number; draws: number; losses: number; played: number }> = {};
   for (const team of INITIAL_TEAMS) {
     table[team.id] = { wins: 0, draws: 0, losses: 0, played: 0 };
@@ -111,8 +123,11 @@ export function computeLeaderboard(matches: TournamentMatch[]): LeaderboardEntry
 
   const entries: LeaderboardEntry[] = INITIAL_TEAMS.map((team) => {
     const stat = table[team.id];
-    // Win = 1 point, Draw = 0 points, Loss = 0 points
-    const total_points = stat.wins * 1;
+    // Win = 3 points, Draw = 1 point, Loss = 0 points
+    const match_points = (stat.wins * 3) + (stat.draws * 1);
+    const bonus_points = pointAdjustments[team.id] || 0;
+    const total_points = match_points + bonus_points;
+
     return {
       rank: 1,
       team_id: team.id,
@@ -121,6 +136,8 @@ export function computeLeaderboard(matches: TournamentMatch[]): LeaderboardEntry
       team_code: team.code,
       team_color: team.color,
       total_points,
+      match_points,
+      bonus_points,
       wins: stat.wins,
       draws: stat.draws,
       losses: stat.losses,
@@ -129,12 +146,15 @@ export function computeLeaderboard(matches: TournamentMatch[]): LeaderboardEntry
     };
   });
 
-  // Sort descending by points, then wins
+  // Sort descending by total_points, then wins, then draws
   entries.sort((a, b) => {
     if (b.total_points !== a.total_points) {
       return b.total_points - a.total_points;
     }
-    return b.wins - a.wins;
+    if (b.wins !== a.wins) {
+      return b.wins - a.wins;
+    }
+    return b.draws - a.draws;
   });
 
   return entries.map((entry, index) => ({
@@ -235,8 +255,9 @@ export function createInitialSnapshot(): TournamentSnapshot {
     rounds,
     current_round_matches: currentRoundMatches,
     all_matches,
-    leaderboard: computeLeaderboard(all_matches),
+    leaderboard: computeLeaderboard(all_matches, {}),
     recent_activities: initialActivities,
+    point_adjustments: {},
     server_time: new Date().toISOString(),
   };
 }
@@ -246,7 +267,7 @@ export function loadStandaloneSnapshot(): TournamentSnapshot {
     let raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       // Check for older cached versions to migrate
-      for (const oldKey of ['ccc_tournament_state_v4', 'ccc_tournament_state_v3', 'ccc_tournament_state_v2', 'ccc_tournament_state_v1']) {
+      for (const oldKey of ['ccc_tournament_state_v5', 'ccc_tournament_state_v4', 'ccc_tournament_state_v3', 'ccc_tournament_state_v2', 'ccc_tournament_state_v1']) {
         const oldRaw = localStorage.getItem(oldKey);
         if (oldRaw) {
           raw = oldRaw;
@@ -264,6 +285,9 @@ export function loadStandaloneSnapshot(): TournamentSnapshot {
           const freshGame = INITIAL_GAMES.find((g) => g.id === m.game_id);
           return freshGame ? { ...m, game: freshGame } : m;
         });
+        parsed.point_adjustments = parsed.point_adjustments || {};
+        // Recompute leaderboard with updated 3-1-0 scoring and bonus points
+        parsed.leaderboard = computeLeaderboard(parsed.all_matches, parsed.point_adjustments);
         parsed.current_round_matches = parsed.all_matches.filter((m: TournamentMatch) => m.round_id === parsed.current_round);
         saveStandaloneSnapshot(parsed);
         return parsed;

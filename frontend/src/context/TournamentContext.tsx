@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import type {
   TournamentSnapshot,
   RoundTimer,
+  ActivityLog,
 } from '../types/tournament';
 import { useAuth } from './AuthContext';
 import { soundController } from '../utils/audio';
@@ -11,6 +12,7 @@ import {
   saveStandaloneSnapshot,
   computeLeaderboard,
   computeStats,
+  createInitialSnapshot,
 } from '../utils/standaloneEngine';
 
 interface ToastMessage {
@@ -42,6 +44,9 @@ interface TournamentContextType {
   // Match Results
   submitResult: (matchId: number, winnerTeamId: number | null, isDraw: boolean, notes?: string) => Promise<boolean>;
   correctResult: (matchId: number, winnerTeamId: number | null, isDraw: boolean, reason: string, notes?: string) => Promise<boolean>;
+  // Points Adjustment & Tournament Reset
+  adjustTeamPoints: (teamId: number, delta: number, reason: string) => Promise<boolean>;
+  resetTournament: () => Promise<boolean>;
 }
 
 const TournamentContext = createContext<TournamentContextType | null>(null);
@@ -288,7 +293,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             ...prev,
             all_matches: updatedMatches,
             current_round_matches: currentRoundMatches,
-            leaderboard: computeLeaderboard(updatedMatches),
+            leaderboard: computeLeaderboard(updatedMatches, prev.point_adjustments || {}),
             stats: computeStats(updatedMatches),
           };
           saveStandaloneSnapshot(next);
@@ -331,7 +336,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             ...prev,
             all_matches: updatedMatches,
             current_round_matches: currentRoundMatches,
-            leaderboard: computeLeaderboard(updatedMatches),
+            leaderboard: computeLeaderboard(updatedMatches, prev.point_adjustments || {}),
             stats: computeStats(updatedMatches),
           };
           saveStandaloneSnapshot(next);
@@ -366,6 +371,31 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           saveStandaloneSnapshot(next);
           return next;
         });
+      })
+      .on('broadcast', { event: 'PointsAdjusted' }, (payload) => {
+        const p = payload.payload;
+        addToast('info', 'Points Adjusted', `Administrator adjusted points (${p.delta >= 0 ? `+${p.delta}` : p.delta}).`);
+        setSnapshot((prev) => {
+          if (!prev) return prev;
+          const currentAdj = prev.point_adjustments || {};
+          const newBonus = (currentAdj[p.teamId] || 0) + p.delta;
+          const updatedAdj = { ...currentAdj, [p.teamId]: newBonus };
+          const next = {
+            ...prev,
+            point_adjustments: updatedAdj,
+            leaderboard: computeLeaderboard(prev.all_matches, updatedAdj),
+          };
+          saveStandaloneSnapshot(next);
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'TournamentReset' }, () => {
+        soundController.playSuccess();
+        const fresh = createInitialSnapshot();
+        setSnapshot(fresh);
+        setCurrentTimer(fresh.timer);
+        saveStandaloneSnapshot(fresh);
+        addToast('warning', 'Tournament Reset', 'Tournament has been restarted by administrator.');
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
@@ -796,12 +826,42 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return m;
       });
 
-      const currentRoundMatches = updatedMatches.filter((m) => m.round_id === prev.current_round);
+      const thisMatchRoundId = targetMatch ? targetMatch.round_id : prev.current_round;
+      const matchesInThisRound = updatedMatches.filter((m) => m.round_id === thisMatchRoundId);
+      const isRoundNowFullyFinished = matchesInThisRound.length === 5 && matchesInThisRound.every((m) => m.status === 'completed');
+
+      let nextRoundNum = prev.current_round;
+      let updatedRounds = prev.rounds;
+
+      if (isRoundNowFullyFinished && thisMatchRoundId < 5) {
+        nextRoundNum = thisMatchRoundId + 1;
+        updatedRounds = prev.rounds.map((r) => {
+          if (r.round_number === thisMatchRoundId) {
+            return { ...r, status: 'completed' as const, completed_at: new Date().toISOString() };
+          }
+          if (r.round_number === nextRoundNum) {
+            return { ...r, status: 'active' as const, started_at: new Date().toISOString() };
+          }
+          return r;
+        });
+      } else if (isRoundNowFullyFinished && thisMatchRoundId === 5) {
+        updatedRounds = prev.rounds.map((r) => {
+          if (r.round_number === 5) {
+            return { ...r, status: 'completed' as const, completed_at: new Date().toISOString() };
+          }
+          return r;
+        });
+      }
+
+      const currentRoundMatches = updatedMatches.filter((m) => m.round_id === nextRoundNum);
       const next = {
         ...prev,
+        current_round: nextRoundNum,
+        active_round: updatedRounds.find((r) => r.round_number === nextRoundNum) || null,
+        rounds: updatedRounds,
         all_matches: updatedMatches,
         current_round_matches: currentRoundMatches,
-        leaderboard: computeLeaderboard(updatedMatches),
+        leaderboard: computeLeaderboard(updatedMatches, prev.point_adjustments || {}),
         stats: computeStats(updatedMatches),
       };
       saveStandaloneSnapshot(next);
@@ -810,6 +870,19 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     soundController.playSuccess();
     addToast('success', 'Result Recorded', `${gameName}: Result officially recorded!`);
+
+    if (targetMatch && targetMatch.round_id < 5) {
+      const roundMatches = snapshot?.all_matches.filter((m) => m.round_id === targetMatch.round_id) || [];
+      const pendingOthers = roundMatches.filter((m) => m.id !== matchId && m.status !== 'completed');
+      if (pendingOthers.length === 0) {
+        addToast(
+          'success',
+          'الجولة التالية مفتوحة!',
+          `🎉 اكتملت جميع مباريات الجولة ${targetMatch.round_id}! تم فتح الجولة ${targetMatch.round_id + 1} تلقائياً.`
+        );
+        broadcastSupabase('RoundCompleted', { roundNumber: targetMatch.round_id });
+      }
+    }
 
     broadcastSupabase('MatchResultSubmitted', {
       matchId,
@@ -885,7 +958,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         ...prev,
         all_matches: updatedMatches,
         current_round_matches: currentRoundMatches,
-        leaderboard: computeLeaderboard(updatedMatches),
+        leaderboard: computeLeaderboard(updatedMatches, prev.point_adjustments || {}),
         stats: computeStats(updatedMatches),
       };
       saveStandaloneSnapshot(next);
@@ -927,6 +1000,89 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return true;
   };
 
+  // Admin Manual Points Adjustment (Add/Deduct points with reason)
+  const adjustTeamPoints = async (teamId: number, delta: number, reason: string): Promise<boolean> => {
+    soundController.playClick();
+    if (!snapshot) return false;
+
+    const team = snapshot.teams.find((t) => t.id === teamId);
+    const teamName = team ? (team.name_ar || team.name) : `Team ${teamId}`;
+
+    setSnapshot((prev) => {
+      if (!prev) return prev;
+      const currentAdj = prev.point_adjustments || {};
+      const newBonus = (currentAdj[teamId] || 0) + delta;
+      const updatedAdj = { ...currentAdj, [teamId]: newBonus };
+
+      const updatedLeaderboard = computeLeaderboard(prev.all_matches, updatedAdj);
+      const activity: ActivityLog = {
+        id: Date.now(),
+        user_name: user?.name || 'Administrator',
+        action: 'POINTS_ADJUSTED',
+        details: `${delta >= 0 ? `+${delta}` : delta} نقاط للفريق ${teamName}. السبب: ${reason}`,
+        created_at: new Date().toISOString(),
+      };
+
+      const next = {
+        ...prev,
+        point_adjustments: updatedAdj,
+        leaderboard: updatedLeaderboard,
+        recent_activities: [activity, ...(prev.recent_activities || [])].slice(0, 25),
+      };
+      saveStandaloneSnapshot(next);
+      return next;
+    });
+
+    soundController.playSuccess();
+    addToast(
+      'success',
+      'تم تعديل النقاط',
+      `تم تطبيق ${delta >= 0 ? `+${delta}` : delta} نقطة للفريق: ${teamName}`
+    );
+
+    broadcastSupabase('PointsAdjusted', { teamId, delta, reason });
+    return true;
+  };
+
+  // Full Tournament Restart / Reset (Zero all matches, points, and timers)
+  const resetTournament = async (): Promise<boolean> => {
+    soundController.playClick();
+    const fresh = createInitialSnapshot();
+    const resetActivity: ActivityLog = {
+      id: Date.now(),
+      user_name: user?.name || 'Administrator',
+      action: 'TOURNAMENT_RESET',
+      details: 'تم تصفير البطولة بالكامل وإعادة ضبط جميع الجولات والنقاط والمؤقت المركزي.',
+      created_at: new Date().toISOString(),
+    };
+    fresh.recent_activities = [resetActivity];
+
+    setSnapshot(fresh);
+    setCurrentTimer(fresh.timer);
+    saveStandaloneSnapshot(fresh);
+
+    soundController.playSuccess();
+    addToast(
+      'info',
+      'تصفير البطولة',
+      'تم تصفير جميع نتائج الجولات والنقاط بالكامل والعودة للجولة الأولى 1.'
+    );
+
+    broadcastSupabase('TournamentReset');
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch('/api/tournament/reset', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        });
+      } catch {
+        // ignore
+      }
+    }
+    return true;
+  };
+
   return (
     <TournamentContext.Provider
       value={{
@@ -947,6 +1103,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         completeRound,
         submitResult,
         correctResult,
+        adjustTeamPoints,
+        resetTournament,
       }}
     >
       {children}

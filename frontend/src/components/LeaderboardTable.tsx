@@ -1,16 +1,18 @@
 import React from 'react';
 import type { LeaderboardEntry } from '../types/tournament';
 import { useLanguage } from '../context/LanguageContext';
-import { Trophy, Medal, Award } from 'lucide-react';
+import { Trophy, Medal, Award, SlidersHorizontal } from 'lucide-react';
 
 interface LeaderboardTableProps {
   leaderboard: LeaderboardEntry[];
   compact?: boolean;
+  onAdjustPoints?: (teamId: number, teamDisplayName: string) => void;
 }
 
 export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
   leaderboard,
   compact = false,
+  onAdjustPoints,
 }) => {
   const { t, language } = useLanguage();
 
@@ -69,12 +71,14 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
               <th className="py-3 px-3 text-center">{t('losses_short')}</th>
               <th className="py-3 px-3 text-center">{t('played_short')}</th>
               {!compact && <th className="py-3 px-3 text-center hidden md:table-cell">{t('remaining_short')}</th>}
+              {onAdjustPoints && <th className="py-3 px-3 text-center w-20">{language === 'ar' ? 'تعديل' : 'Adjust'}</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
             {leaderboard.map((entry) => {
               const teamDisplayName = language === 'ar' ? entry.team_name_ar : entry.team_name;
               const isFirst = entry.rank === 1;
+              const bonus = entry.bonus_points ?? 0;
 
               return (
                 <tr
@@ -106,9 +110,19 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
 
                   {/* Points */}
                   <td className="py-3 px-4 text-center">
-                    <span className="inline-block px-3 py-1 rounded-lg bg-blue-500/15 border border-cyan-500/30 font-mono-esports font-black text-cyan-300 text-base md:text-lg">
-                      {entry.total_points}
-                    </span>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-500/15 border border-cyan-500/30 font-mono-esports font-black text-cyan-300 text-base md:text-lg">
+                      <span>{entry.total_points}</span>
+                      {bonus !== 0 && (
+                        <span
+                          className={`text-[10px] px-1 py-0.2 rounded font-bold ${
+                            bonus > 0 ? 'text-emerald-400 bg-emerald-500/20' : 'text-rose-400 bg-rose-500/20'
+                          }`}
+                          title={language === 'ar' ? `نقاط معدلة يدوياً: ${bonus > 0 ? `+${bonus}` : bonus}` : `Adjusted bonus: ${bonus > 0 ? `+${bonus}` : bonus}`}
+                        >
+                          {bonus > 0 ? `+${bonus}` : bonus}
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* W / D / L */}
@@ -133,6 +147,21 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
                       {entry.matches_remaining}
                     </td>
                   )}
+
+                  {/* Manual Points Adjustment Button */}
+                  {onAdjustPoints && (
+                    <td className="py-3 px-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => onAdjustPoints(entry.team_id, teamDisplayName)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-cyan-500/20 border border-slate-700 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 text-[11px] font-bold transition-all cursor-pointer"
+                        title={language === 'ar' ? `إضافة أو خصم نقاط لفريق ${teamDisplayName}` : `Adjust points for ${teamDisplayName}`}
+                      >
+                        <SlidersHorizontal className="w-3 h-3" />
+                        <span className="hidden sm:inline">{language === 'ar' ? 'تعديل' : '+/-'}</span>
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -142,3 +171,4 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
     </div>
   );
 };
+

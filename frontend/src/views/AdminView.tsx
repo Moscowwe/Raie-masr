@@ -7,21 +7,29 @@ import { MatchStationCard } from '../components/MatchStationCard';
 import { LeaderboardTable } from '../components/LeaderboardTable';
 import { SetDurationModal } from '../components/modals/SetDurationModal';
 import { CorrectResultModal } from '../components/modals/CorrectResultModal';
+import { ResetTournamentModal } from '../components/modals/ResetTournamentModal';
+import { AdjustPointsModal } from '../components/modals/AdjustPointsModal';
 import type { TournamentMatch } from '../types/tournament';
 import {
   Activity,
   CheckCircle2,
   AlertTriangle,
   Lock,
+  RotateCcw,
+  SlidersHorizontal,
+  Award,
 } from 'lucide-react';
 
 export const AdminView: React.FC = () => {
-  const { snapshot, selectRound, completeRound, correctResult } = useTournament();
+  const { snapshot, selectRound, completeRound, correctResult, resetTournament, adjustTeamPoints } = useTournament();
   const { t, language } = useLanguage();
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'matches' | 'leaderboard' | 'activity'>('matches');
   const [isDurationModalOpen, setIsDurationModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isAdjustPointsModalOpen, setIsAdjustPointsModalOpen] = useState(false);
+  const [selectedTeamForPoints, setSelectedTeamForPoints] = useState<number | null>(null);
   const [selectedMatchForCorrection, setSelectedMatchForCorrection] = useState<TournamentMatch | null>(null);
   const [isAdvancingRound, setIsAdvancingRound] = useState(false);
   const [advanceError, setAdvanceError] = useState<string | null>(null);
@@ -145,8 +153,7 @@ export const AdminView: React.FC = () => {
             const isRoundLocked = r.round_number > 1 && (
               snapshot?.all_matches.some(
                 (m) => m.round_id < r.round_number && m.status !== 'completed'
-              ) ||
-              snapshot?.rounds.find((prevR) => prevR.round_number === r.round_number - 1)?.status !== 'completed'
+              ) ?? false
             );
 
             return (
@@ -188,38 +195,53 @@ export const AdminView: React.FC = () => {
           })}
         </div>
 
-        {/* View Mode Tabs (Matches / Leaderboard / Audit Log) */}
-        <div className="flex items-center p-1 bg-slate-900 rounded-xl border border-slate-800">
-          <button
-            onClick={() => setActiveTab('matches')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'matches'
-                ? 'bg-slate-800 text-cyan-400'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            5 Stations Grid
-          </button>
-          <button
-            onClick={() => setActiveTab('leaderboard')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'leaderboard'
-                ? 'bg-slate-800 text-cyan-400'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Leaderboard
-          </button>
-          <button
-            onClick={() => setActiveTab('activity')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'activity'
-                ? 'bg-slate-800 text-cyan-400'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Activity Audit
-          </button>
+        {/* Right Actions: Reset Tournament & View Mode Tabs */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {user?.role === 'admin' && (
+            <button
+              type="button"
+              onClick={() => setIsResetModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 text-xs font-bold transition-all cursor-pointer shadow-sm"
+              title={language === 'ar' ? 'تصفير نتائج البطولة بالكامل والبدء من جديد' : 'Reset Tournament'}
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+              <span>{language === 'ar' ? 'تصفير البطولة' : 'Reset All'}</span>
+            </button>
+          )}
+
+          {/* View Mode Tabs (Matches / Leaderboard / Audit Log) */}
+          <div className="flex items-center p-1 bg-slate-900 rounded-xl border border-slate-800">
+            <button
+              onClick={() => setActiveTab('matches')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'matches'
+                  ? 'bg-slate-800 text-cyan-400'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              5 Stations Grid
+            </button>
+            <button
+              onClick={() => setActiveTab('leaderboard')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'leaderboard'
+                  ? 'bg-slate-800 text-cyan-400'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Leaderboard
+            </button>
+            <button
+              onClick={() => setActiveTab('activity')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'activity'
+                  ? 'bg-slate-800 text-cyan-400'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Activity Audit
+            </button>
+          </div>
         </div>
       </div>
 
@@ -233,8 +255,7 @@ export const AdminView: React.FC = () => {
                 <h2 className="text-lg md:text-xl font-black text-white uppercase tracking-wider m-0">
                   {t('round')} {currentRoundNum} • 5 Live Game Stations
                 </h2>
-                {currentRoundNum > 1 && (snapshot?.all_matches.some((m) => m.round_id < currentRoundNum && m.status !== 'completed') ||
-                  snapshot?.rounds.find((prevR) => prevR.round_number === currentRoundNum - 1)?.status !== 'completed') && (
+                {currentRoundNum > 1 && (snapshot?.all_matches.some((m) => m.round_id < currentRoundNum && m.status !== 'completed') ?? false) && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
                     <Lock className="w-3 h-3 text-amber-400" />
                     {language === 'ar' ? 'الجولة مقفلة' : 'Round Locked'}
@@ -275,8 +296,7 @@ export const AdminView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {matches.map((match) => {
               const isMatchLocked = match.round_id > 1 && (
-                snapshot?.all_matches.some((m) => m.round_id < match.round_id && m.status !== 'completed') ||
-                snapshot?.rounds.find((prevR) => prevR.round_number === match.round_id - 1)?.status !== 'completed'
+                snapshot?.all_matches.some((m) => m.round_id < match.round_id && m.status !== 'completed') ?? false
               );
 
               return (
@@ -295,7 +315,44 @@ export const AdminView: React.FC = () => {
 
       {activeTab === 'leaderboard' && (
         <div className="space-y-4">
-          <LeaderboardTable leaderboard={leaderboard} />
+          {user?.role === 'admin' && (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-[#12161F] border border-slate-800 shadow-md">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400">
+                  <Award className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-white block">
+                    {language === 'ar' ? 'التحكم الإداري المباشر في نقاط الفرق' : 'Administrative Points Adjustment'}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {language === 'ar'
+                      ? 'يمكنك إضافة أو خصم نقاط لأي فريق مباشرة من لوحة التحكم مع تسجيل السبب'
+                      : 'Add bonus points or apply penalty deductions with audit log reason'}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedTeamForPoints(null);
+                  setIsAdjustPointsModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-bold shadow-md shadow-blue-500/25 glow-blue transition-all cursor-pointer"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>{language === 'ar' ? 'إضافة / خصم نقاط لفريق' : 'Adjust Team Points'}</span>
+              </button>
+            </div>
+          )}
+
+          <LeaderboardTable
+            leaderboard={leaderboard}
+            onAdjustPoints={user?.role === 'admin' ? (teamId) => {
+              setSelectedTeamForPoints(teamId);
+              setIsAdjustPointsModalOpen(true);
+            } : undefined}
+          />
         </div>
       )}
 
@@ -351,6 +408,28 @@ export const AdminView: React.FC = () => {
           }}
         />
       )}
+
+      <ResetTournamentModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onConfirm={async () => {
+          await resetTournament();
+        }}
+      />
+
+      <AdjustPointsModal
+        isOpen={isAdjustPointsModalOpen}
+        onClose={() => {
+          setIsAdjustPointsModalOpen(false);
+          setSelectedTeamForPoints(null);
+        }}
+        teams={snapshot?.teams ?? []}
+        initialTeamId={selectedTeamForPoints}
+        onConfirm={async (teamId, delta, reason) => {
+          await adjustTeamPoints(teamId, delta, reason);
+        }}
+      />
     </div>
   );
 };
+
