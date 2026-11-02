@@ -69,12 +69,19 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const timerTickRef = useRef<number | null>(null);
 
   const addToast = useCallback((type: 'info' | 'success' | 'warning' | 'error', title: string, message: string) => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [{ id, type, title, message, timestamp: Date.now() }, ...prev.slice(0, 4)]);
+    setToasts((prev) => {
+      // Prevent duplicate toast with identical title & message within 8 seconds
+      const isDuplicate = prev.some(
+        (t) => t.title === title && t.message === message && (Date.now() - t.timestamp) < 8000
+      );
+      if (isDuplicate) return prev;
 
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 6000);
+      const id = Math.random().toString(36).substring(2, 9);
+      setTimeout(() => {
+        setToasts((curr) => curr.filter((t) => t.id !== id));
+      }, 5000);
+      return [{ id, type, title, message, timestamp: Date.now() }, ...prev.slice(0, 3)];
+    });
   }, []);
 
   const dismissToast = (id: string) => {
@@ -161,8 +168,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setSnapshot(incomingSnapshot);
       if (incomingSnapshot.timer) {
         setCurrentTimer(incomingSnapshot.timer);
-        if (incomingSnapshot.timer.status !== 'expired') {
-          hasBuzzerPlayedRef.current = false;
+        if (incomingSnapshot.timer.status === 'expired' || (incomingSnapshot.timer.remaining_seconds ?? 1) <= 0) {
+          hasBuzzerPlayedRef.current = true;
         }
       }
       saveStandaloneSnapshot(incomingSnapshot);
@@ -190,6 +197,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (!p) return;
         setCurrentTimer((prev) => {
           if (!prev) return prev;
+          if (prev.status === 'expired' && p.status === 'running' && (p.remaining_seconds ?? 0) <= 0) {
+            return prev;
+          }
           return {
             ...prev,
             status: p.status,
@@ -199,6 +209,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         });
       })
       .on('broadcast', { event: 'RoundStarted' }, (payload) => {
+        hasBuzzerPlayedRef.current = false;
         soundController.playWhistle();
         const roundNum = payload.payload?.roundNumber ?? 1;
         const expiresAt = payload.payload?.expires_at;
@@ -264,10 +275,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         });
       })
       .on('broadcast', { event: 'RoundTimeExpired' }, (payload) => {
-        if (!hasBuzzerPlayedRef.current) {
-          hasBuzzerPlayedRef.current = true;
-          addToast('info', 'انتهاء وقت الجولة', 'انتهى وقت الـ 10 دقائق للجولة. يمكن للحكام الآن تسجيل النتائج واختيار الفريق الفائز.');
-        }
+        hasBuzzerPlayedRef.current = true;
         if (payload.payload?.snapshot) {
           applySyncedSnapshot(payload.payload.snapshot);
           return;
@@ -593,16 +601,37 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const remaining = Math.max(0, Math.floor((expiresAtMs - now) / 1000));
 
       if (remaining <= 0) {
+        clearInterval(timer);
+
         if (!hasBuzzerPlayedRef.current) {
           hasBuzzerPlayedRef.current = true;
           soundController.playBuzzer();
           addToast('info', 'انتهاء وقت الجولة', 'انتهى وقت الـ 10 دقائق للجولة. يمكن للحكام الآن تسجيل واختيار الفريق الفائز.');
-          broadcastSupabase('RoundTimeExpired', { snapshot: snapshotRef.current });
-        }
 
-        setCurrentTimer((prev) =>
-          prev ? { ...prev, remaining_seconds: 0, status: 'expired' } : null
-        );
+          let expiredSnapshot: TournamentSnapshot | null = null;
+          setSnapshot((prev) => {
+            if (!prev || !prev.timer) return prev;
+            const updatedTimer: RoundTimer = {
+              ...prev.timer,
+              status: 'expired',
+              remaining_seconds: 0,
+            };
+            const next = { ...prev, timer: updatedTimer };
+            saveStandaloneSnapshot(next);
+            expiredSnapshot = next;
+            return next;
+          });
+
+          setCurrentTimer((prev) =>
+            prev ? { ...prev, remaining_seconds: 0, status: 'expired' } : null
+          );
+
+          broadcastSupabase('RoundTimeExpired', { snapshot: expiredSnapshot });
+        } else {
+          setCurrentTimer((prev) =>
+            prev ? { ...prev, remaining_seconds: 0, status: 'expired' } : null
+          );
+        }
       } else {
         // Warning tick on last 5 seconds
         if (remaining <= 5 && remaining !== timerTickRef.current) {
@@ -686,6 +715,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return next;
     });
 
+    hasBuzzerPlayedRef.current = false;
     soundController.playWhistle();
     broadcastSupabase('RoundStarted', {
       roundNumber: roundNum,
