@@ -10,7 +10,7 @@ import type {
   TournamentStats,
 } from '../types/tournament';
 
-const STORAGE_KEY = 'ccc_tournament_state_v2';
+const STORAGE_KEY = 'ccc_tournament_state_v5';
 
 export const INITIAL_TEAMS: Team[] = [
   { id: 1, name: 'Team 1', name_ar: 'الفريق 1', code: 'T1', color: '#00D2FF' },
@@ -29,11 +29,11 @@ export const INITIAL_GAMES: Game[] = [
   {
     id: 1,
     station_number: 1,
-    name_en: 'Prem Ball',
-    name_ar: 'بريم بول',
-    description_en: 'Fast-paced ball precision and agility battle',
-    description_ar: 'تحدي الدقة والرشاقة والتحكم بالكرة',
-    icon: 'circle-dot',
+    name_en: 'Brain Ball',
+    name_ar: 'برين بول',
+    description_en: 'Fast-paced ball precision, agility, and mental battle',
+    description_ar: 'تحدي الدقة والرشاقة والتحكم والتركيز الذهني بالكرة',
+    icon: 'brain',
   },
   {
     id: 2,
@@ -65,11 +65,11 @@ export const INITIAL_GAMES: Game[] = [
   {
     id: 5,
     station_number: 5,
-    name_en: 'Al-Fartas',
-    name_ar: 'الفرطاس',
-    description_en: 'Traditional high-stakes speed and reflex showdown',
-    description_ar: 'المواجهة التراثية الكبرى للسرعة وسرعة البديهة',
-    icon: 'zap',
+    name_en: 'Telescope',
+    name_ar: 'تليسكوب',
+    description_en: 'High-stakes visual precision, speed, and tactical reflex showdown',
+    description_ar: 'المواجهة الكبرى لدقة الرؤية وسرعة البديهة والتركيز العالي',
+    icon: 'telescope',
   },
 ];
 
@@ -243,10 +243,29 @@ export function createInitialSnapshot(): TournamentSnapshot {
 
 export function loadStandaloneSnapshot(): TournamentSnapshot {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      // Check for older cached versions to migrate
+      for (const oldKey of ['ccc_tournament_state_v4', 'ccc_tournament_state_v3', 'ccc_tournament_state_v2', 'ccc_tournament_state_v1']) {
+        const oldRaw = localStorage.getItem(oldKey);
+        if (oldRaw) {
+          raw = oldRaw;
+          break;
+        }
+      }
+    }
+
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.all_matches && parsed.all_matches.length === 25) {
+        // Ensure updated game definitions for Brain Ball and Telescope
+        parsed.games = INITIAL_GAMES;
+        parsed.all_matches = parsed.all_matches.map((m: TournamentMatch) => {
+          const freshGame = INITIAL_GAMES.find((g) => g.id === m.game_id);
+          return freshGame ? { ...m, game: freshGame } : m;
+        });
+        parsed.current_round_matches = parsed.all_matches.filter((m: TournamentMatch) => m.round_id === parsed.current_round);
+        saveStandaloneSnapshot(parsed);
         return parsed;
       }
     }

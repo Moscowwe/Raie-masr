@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       const match = email.match(/operator(\d)@ccc\.local/);
       const station = match ? parseInt(match[1]) : 1;
-      const gameNames = ['Prem Ball', 'Fish Hunters', 'Chair & Ball', 'Human Collision', 'Al-Fartas'];
+      const gameNames = ['Brain Ball', 'Fish Hunters', 'Chair & Ball', 'Human Collision', 'Telescope'];
       mockUser = {
         id: station + 1,
         name: `Operator ${gameNames[station - 1] || station}`,

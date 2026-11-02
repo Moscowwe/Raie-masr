@@ -21,11 +21,11 @@ export const RoleSwitchModal: React.FC<RoleSwitchModalProps> = ({
   if (!isOpen) return null;
 
   const operators = [
-    { station: 1, name: 'Operator 1', game: 'Prem Ball • بريم بول' },
+    { station: 1, name: 'Operator 1', game: 'Brain Ball • برين بول' },
     { station: 2, name: 'Operator 2', game: 'Fish Hunters • صيادين السمك' },
     { station: 3, name: 'Operator 3', game: 'Chair & Ball • كرسي و الكرة' },
     { station: 4, name: 'Operator 4', game: 'Human Collision • التصادم البشري' },
-    { station: 5, name: 'Operator 5', game: 'Al-Fartas • الفرطاس' },
+    { station: 5, name: 'Operator 5', game: 'Telescope • تليسكوب' },
   ];
 
   const handleSwitch = async (role: 'admin' | 'operator', station?: number) => {

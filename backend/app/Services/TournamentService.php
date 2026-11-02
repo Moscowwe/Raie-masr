@@ -105,6 +105,19 @@ class TournamentService
     public function selectRound(int $roundNum, ?string $userName = 'Admin'): Round
     {
         $round = Round::where('round_number', $roundNum)->firstOrFail();
+
+        if ($roundNum > 1) {
+            $prevIncomplete = TournamentMatch::whereHas('round', function ($q) use ($roundNum) {
+                $q->where('round_number', '<', $roundNum);
+            })->where('status', '!=', 'completed')->exists();
+
+            if ($prevIncomplete) {
+                throw ValidationException::withMessages([
+                    'round' => "Cannot select Round {$roundNum}: Previous rounds must be completed first.",
+                ]);
+            }
+        }
+
         $this->setCurrentRoundNumber($roundNum);
 
         ActivityLog::create([

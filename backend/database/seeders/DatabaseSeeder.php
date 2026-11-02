@@ -55,11 +55,11 @@ class DatabaseSeeder extends Seeder
             [
                 'id' => 1,
                 'station_number' => 1,
-                'name_en' => 'Prem Ball',
-                'name_ar' => 'بريم بول',
-                'description_en' => 'Fast-paced ball precision and agility battle',
-                'description_ar' => 'تحدي الدقة والرشاقة والتحكم بالكرة',
-                'icon' => 'circle-dot',
+                'name_en' => 'Brain Ball',
+                'name_ar' => 'برين بول',
+                'description_en' => 'Fast-paced ball precision, agility, and mental battle',
+                'description_ar' => 'تحدي الدقة والرشاقة والتحكم والتركيز الذهني بالكرة',
+                'icon' => 'brain',
             ],
             [
                 'id' => 2,
@@ -91,11 +91,11 @@ class DatabaseSeeder extends Seeder
             [
                 'id' => 5,
                 'station_number' => 5,
-                'name_en' => 'Al-Fartas',
-                'name_ar' => 'الفرطاس',
-                'description_en' => 'Traditional high-stakes speed and reflex showdown',
-                'description_ar' => 'المواجهة التراثية الكبرى للسرعة وسرعة البديهة',
-                'icon' => 'zap',
+                'name_en' => 'Telescope',
+                'name_ar' => 'تليسكوب',
+                'description_en' => 'High-stakes visual precision, speed, and tactical reflex showdown',
+                'description_ar' => 'المواجهة الكبرى لدقة الرؤية وسرعة البديهة والتركيز العالي',
+                'icon' => 'telescope',
             ],
         ];
 
@@ -115,11 +115,11 @@ class DatabaseSeeder extends Seeder
         );
 
         $operators = [
-            ['station' => 1, 'email' => 'operator1@ccc.local', 'name' => 'Operator Prem Ball', 'game_id' => 1],
+            ['station' => 1, 'email' => 'operator1@ccc.local', 'name' => 'Operator Brain Ball', 'game_id' => 1],
             ['station' => 2, 'email' => 'operator2@ccc.local', 'name' => 'Operator Fish Hunters', 'game_id' => 2],
             ['station' => 3, 'email' => 'operator3@ccc.local', 'name' => 'Operator Chair & Ball', 'game_id' => 3],
             ['station' => 4, 'email' => 'operator4@ccc.local', 'name' => 'Operator Human Collision', 'game_id' => 4],
-            ['station' => 5, 'email' => 'operator5@ccc.local', 'name' => 'Operator Al-Fartas', 'game_id' => 5],
+            ['station' => 5, 'email' => 'operator5@ccc.local', 'name' => 'Operator Telescope', 'game_id' => 5],
         ];
 
         foreach ($operators as $op) {

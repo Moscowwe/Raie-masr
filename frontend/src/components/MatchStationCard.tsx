@@ -4,28 +4,31 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import {
   Gamepad2,
-  CircleDot,
+  Brain,
   Fish,
   Armchair,
   Swords,
-  Zap,
+  Telescope,
   CheckCircle2,
   Clock,
   AlertTriangle,
   UserCheck,
   Edit3,
+  Lock,
 } from 'lucide-react';
 
 interface MatchStationCardProps {
   match: TournamentMatch;
   onCorrectResult?: (match: TournamentMatch) => void;
   showAdminActions?: boolean;
+  isLocked?: boolean;
 }
 
 export const MatchStationCard: React.FC<MatchStationCardProps> = ({
   match,
   onCorrectResult,
   showAdminActions = false,
+  isLocked = false,
 }) => {
   const { t, language } = useLanguage();
   const { user } = useAuth();
@@ -44,7 +47,8 @@ export const MatchStationCard: React.FC<MatchStationCardProps> = ({
   const getGameIcon = (iconName?: string) => {
     switch (iconName) {
       case 'circle-dot':
-        return <CircleDot className="w-5 h-5 text-cyan-400" />;
+      case 'brain':
+        return <Brain className="w-5 h-5 text-cyan-400" />;
       case 'fish':
         return <Fish className="w-5 h-5 text-blue-400" />;
       case 'armchair':
@@ -52,7 +56,8 @@ export const MatchStationCard: React.FC<MatchStationCardProps> = ({
       case 'swords':
         return <Swords className="w-5 h-5 text-rose-400" />;
       case 'zap':
-        return <Zap className="w-5 h-5 text-amber-400" />;
+      case 'telescope':
+        return <Telescope className="w-5 h-5 text-amber-400" />;
       default:
         return <Gamepad2 className="w-5 h-5 text-cyan-400" />;
     }
@@ -65,6 +70,14 @@ export const MatchStationCard: React.FC<MatchStationCardProps> = ({
   const teamBWon = isCompleted && !isDraw && result?.winner_team_id === teamB?.id;
 
   const getStatusBadge = () => {
+    if (isLocked && !isCompleted) {
+      return (
+        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+          <Lock className="w-3.5 h-3.5" />
+          {language === 'ar' ? 'الجولة مقفلة' : 'Round Locked'}
+        </span>
+      );
+    }
     if (match.status === 'completed') {
       return (
         <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/40">

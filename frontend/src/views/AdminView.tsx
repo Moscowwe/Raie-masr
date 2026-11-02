@@ -12,11 +12,12 @@ import {
   Activity,
   CheckCircle2,
   AlertTriangle,
+  Lock,
 } from 'lucide-react';
 
 export const AdminView: React.FC = () => {
   const { snapshot, selectRound, completeRound, correctResult } = useTournament();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'matches' | 'leaderboard' | 'activity'>('matches');
@@ -141,24 +142,45 @@ export const AdminView: React.FC = () => {
             const isSelected = r.round_number === currentRoundNum;
             const isCompletedRound = r.status === 'completed';
             const isActiveRound = r.status === 'active';
+            const isRoundLocked = r.round_number > 1 && (
+              snapshot?.all_matches.some(
+                (m) => m.round_id < r.round_number && m.status !== 'completed'
+              ) ||
+              snapshot?.rounds.find((prevR) => prevR.round_number === r.round_number - 1)?.status !== 'completed'
+            );
 
             return (
               <button
                 key={r.id}
-                onClick={() => selectRound(r.round_number)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  isSelected
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 glow-blue'
-                    : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                onClick={() => {
+                  if (isRoundLocked) {
+                    setAdvanceError(
+                      language === 'ar'
+                        ? `الجولة ${r.round_number} مغلقة! لا يمكن فتحها حتى تكتمل جميع مباريات الجولة ${r.round_number - 1}.`
+                        : `Round ${r.round_number} is locked! Complete all matches in Round ${r.round_number - 1} first.`
+                    );
+                    return;
+                  }
+                  setAdvanceError(null);
+                  selectRound(r.round_number);
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  isRoundLocked
+                    ? 'bg-slate-950/60 border border-slate-800/50 text-slate-500 cursor-not-allowed opacity-60'
+                    : isSelected
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 glow-blue cursor-pointer'
+                    : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 cursor-pointer'
                 }`}
+                title={isRoundLocked ? `Round ${r.round_number} is locked` : undefined}
               >
                 <span>
                   {t('round')} {r.round_number}
                 </span>
-                {isCompletedRound && (
+                {isRoundLocked && <Lock className="w-3.5 h-3.5 text-slate-500" />}
+                {isCompletedRound && !isRoundLocked && (
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                 )}
-                {isActiveRound && (
+                {isActiveRound && !isRoundLocked && (
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
                 )}
               </button>
@@ -207,9 +229,18 @@ export const AdminView: React.FC = () => {
           {/* Section Header with Round Completion Action */}
           <div className="flex flex-wrap items-center justify-between gap-3 px-1">
             <div>
-              <h2 className="text-lg md:text-xl font-black text-white uppercase tracking-wider m-0">
-                {t('round')} {currentRoundNum} • 5 Live Game Stations
-              </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg md:text-xl font-black text-white uppercase tracking-wider m-0">
+                  {t('round')} {currentRoundNum} • 5 Live Game Stations
+                </h2>
+                {currentRoundNum > 1 && (snapshot?.all_matches.some((m) => m.round_id < currentRoundNum && m.status !== 'completed') ||
+                  snapshot?.rounds.find((prevR) => prevR.round_number === currentRoundNum - 1)?.status !== 'completed') && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    <Lock className="w-3 h-3 text-amber-400" />
+                    {language === 'ar' ? 'الجولة مقفلة' : 'Round Locked'}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-400 m-0 mt-0.5">
                 Results recorded: {completedCount} of 5 completed
               </p>
@@ -242,14 +273,22 @@ export const AdminView: React.FC = () => {
 
           {/* Grid of the 5 Games */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {matches.map((match) => (
-              <MatchStationCard
-                key={match.id}
-                match={match}
-                showAdminActions={true}
-                onCorrectResult={(m) => setSelectedMatchForCorrection(m)}
-              />
-            ))}
+            {matches.map((match) => {
+              const isMatchLocked = match.round_id > 1 && (
+                snapshot?.all_matches.some((m) => m.round_id < match.round_id && m.status !== 'completed') ||
+                snapshot?.rounds.find((prevR) => prevR.round_number === match.round_id - 1)?.status !== 'completed'
+              );
+
+              return (
+                <MatchStationCard
+                  key={match.id}
+                  match={match}
+                  isLocked={isMatchLocked}
+                  showAdminActions={true}
+                  onCorrectResult={(m) => setSelectedMatchForCorrection(m)}
+                />
+              );
+            })}
           </div>
         </div>
       )}

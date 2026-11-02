@@ -419,9 +419,25 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Admin Timer Control Actions
   const startRound = async (): Promise<boolean> => {
     soundController.playClick();
+    const roundNum = snapshot?.current_round ?? 1;
+
+    // Strict sequential rule: Round N > 1 cannot be played until Round N - 1 is completed
+    if (roundNum > 1 && snapshot?.all_matches) {
+      const prevIncomplete = snapshot.all_matches.some(
+        (m) => m.round_id < roundNum && m.status !== 'completed'
+      );
+      if (prevIncomplete) {
+        addToast(
+          'error',
+          'الجولة مغلقة (Round Locked)',
+          `لا يمكن بدء المؤقت للجولة ${roundNum} حتى تكتمل جميع مباريات الجولة ${roundNum - 1} بالكامل.`
+        );
+        return false;
+      }
+    }
+
     const duration = snapshot?.timer?.duration_seconds || 600;
     const expiresAt = new Date(Date.now() + duration * 1000).toISOString();
-    const roundNum = snapshot?.current_round ?? 1;
 
     // Standalone state update
     setSnapshot((prev) => {
@@ -634,6 +650,21 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     soundController.playClick();
     hasBuzzerPlayedRef.current = false;
 
+    // Strict sequential rule: Cannot navigate to round N > 1 unless all matches in previous rounds are completed
+    if (roundNumber > 1 && snapshot?.all_matches) {
+      const prevIncomplete = snapshot.all_matches.some(
+        (m) => m.round_id < roundNumber && m.status !== 'completed'
+      );
+      if (prevIncomplete) {
+        addToast(
+          'warning',
+          'الجولة مغلقة (Round Locked)',
+          `لا يمكن فتح الجولة ${roundNumber} قبل الانتهاء من جميع مباريات الجولة ${roundNumber - 1}.`
+        );
+        return false;
+      }
+    }
+
     setSnapshot((prev) => {
       if (!prev) return prev;
       const currentRoundMatches = prev.all_matches.filter((m) => m.round_id === roundNumber);
@@ -726,6 +757,21 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const targetMatch = snapshot?.all_matches.find((m) => m.id === matchId);
     const gameName = targetMatch?.game?.name_en || 'Match Station';
+
+    // Strict sequential rule: cannot choose winner or submit result if previous rounds are not completed
+    if (targetMatch && targetMatch.round_id > 1 && snapshot?.all_matches) {
+      const prevIncomplete = snapshot.all_matches.some(
+        (m) => m.round_id < targetMatch.round_id && m.status !== 'completed'
+      );
+      if (prevIncomplete) {
+        addToast(
+          'error',
+          'الجولة غير متاحة (Round Locked)',
+          `لا يمكن اختيار فائز أو تسجيل نتيجة في الجولة ${targetMatch.round_id} حتى تنتهي الجولة ${targetMatch.round_id - 1} بالكامل!`
+        );
+        return false;
+      }
+    }
 
     // Standalone update
     setSnapshot((prev) => {

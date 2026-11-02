@@ -37,15 +37,15 @@ A production-ready, full-stack tournament management system designed for esports
 - Team 1 through Team 10 (الفريق 1 إلى الفريق 10)
 
 ### 5 Game Stations
-1. **Prem Ball** – بريم بول
+1. **Brain Ball** – برين بول
 2. **Fish Hunters** – صيادين السمك
 3. **Chair & Ball** – كرسي و الكرة
 4. **Human Collision** – التصادم البشري
-5. **Al-Fartas** – الفرطاس
+5. **Telescope** – تليسكوب
 
 ### Official Match Schedule (25 Matches)
 
-| Round | Station 1 (Prem Ball) | Station 2 (Fish Hunters) | Station 3 (Chair & Ball) | Station 4 (Human Collision) | Station 5 (Al-Fartas) |
+| Round | Station 1 (Brain Ball) | Station 2 (Fish Hunters) | Station 3 (Chair & Ball) | Station 4 (Human Collision) | Station 5 (Telescope) |
 |---|---|---|---|---|---|
 | **Round 1** | Team 1 vs Team 6 | Team 2 vs Team 7 | Team 8 vs Team 3 | Team 9 vs Team 4 | Team 10 vs Team 5 |
 | **Round 2** | Team 2 vs Team 6 | Team 7 vs Team 3 | Team 4 vs Team 8 | Team 5 vs Team 9 | Team 10 vs Team 1 |
@@ -93,11 +93,11 @@ Open **`http://localhost:5173`** in your browser.
 | Role | Email | Password | Assigned Station |
 |---|---|---|---|
 | **Main Administrator** | `admin@ccc.local` | `password123` | All Stations & Timers |
-| **Operator 1** | `operator1@ccc.local` | `password123` | Station 1 (Prem Ball) |
+| **Operator 1** | `operator1@ccc.local` | `password123` | Station 1 (Brain Ball) |
 | **Operator 2** | `operator2@ccc.local` | `password123` | Station 2 (Fish Hunters) |
 | **Operator 3** | `operator3@ccc.local` | `password123` | Station 3 (Chair & Ball) |
 | **Operator 4** | `operator4@ccc.local` | `password123` | Station 4 (Human Collision) |
-| **Operator 5** | `operator5@ccc.local` | `password123` | Station 5 (Al-Fartas) |
+| **Operator 5** | `operator5@ccc.local` | `password123` | Station 5 (Telescope) |
 
 *Use the **"Switch Role (Demo)"** button in the header to switch roles with a single click.*
 

@@ -9,11 +9,11 @@ import {
   CheckCircle2,
   Lock,
   UserCheck,
-  CircleDot,
+  Brain,
   Fish,
   Armchair,
   Swords,
-  Zap,
+  Telescope,
 } from 'lucide-react';
 
 export const OperatorView: React.FC = () => {
@@ -46,6 +46,12 @@ export const OperatorView: React.FC = () => {
   const result = activeMatch?.result;
   const isCompleted = activeMatch?.status === 'completed' && !!result;
 
+  // Strict check: Is this round locked because previous rounds have incomplete matches?
+  const isRoundLocked = activeMatch && activeMatch.round_id > 1
+    ? (snapshot?.all_matches.some((m) => m.round_id < activeMatch.round_id && m.status !== 'completed') ||
+       snapshot?.rounds.find((r) => r.round_number === activeMatch.round_id - 1)?.status !== 'completed')
+    : false;
+
   const gameName = language === 'ar' ? game?.name_ar : game?.name_en;
   const teamAName = language === 'ar' ? teamA?.name_ar : teamA?.name;
   const teamBName = language === 'ar' ? teamB?.name_ar : teamB?.name;
@@ -60,7 +66,7 @@ export const OperatorView: React.FC = () => {
   const getStationIcon = (station: number) => {
     switch (station) {
       case 1:
-        return <CircleDot className="w-5 h-5 text-cyan-400" />;
+        return <Brain className="w-5 h-5 text-cyan-400" />;
       case 2:
         return <Fish className="w-5 h-5 text-blue-400" />;
       case 3:
@@ -68,14 +74,14 @@ export const OperatorView: React.FC = () => {
       case 4:
         return <Swords className="w-5 h-5 text-rose-400" />;
       case 5:
-        return <Zap className="w-5 h-5 text-amber-400" />;
+        return <Telescope className="w-5 h-5 text-amber-400" />;
       default:
         return <Gamepad2 className="w-5 h-5 text-cyan-400" />;
     }
   };
 
   const handleSelectOutcome = (winnerId: number | null, drawOutcome: boolean) => {
-    if (isCompleted) return;
+    if (isCompleted || isRoundLocked) return;
     setSelectedWinnerId(winnerId);
     setIsDraw(drawOutcome);
     setIsConfirmModalOpen(true);
@@ -272,6 +278,23 @@ export const OperatorView: React.FC = () => {
             </div>
           </div>
 
+          {/* LOCKED ROUND WARNING BANNER */}
+          {isRoundLocked && (
+            <div className="p-5 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-center shadow-xl space-y-2 animate-fadeIn">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 mb-1">
+                <Lock className="w-6 h-6" />
+              </div>
+              <h4 className="text-base font-black text-amber-300 m-0 uppercase tracking-wide">
+                {language === 'ar' ? `الجولة ${activeMatch?.round_id} مقفلة حالياً` : `Round ${activeMatch?.round_id} is Currently Locked`}
+              </h4>
+              <p className="text-xs text-slate-300 max-w-md mx-auto leading-relaxed m-0">
+                {language === 'ar'
+                  ? `لا يمكن بدء اللعب أو اختيار أي فائز في الجولة ${activeMatch?.round_id} حتى تكتمل جميع مباريات الجولة السابقة (الجولة ${Number(activeMatch?.round_id) - 1}) وتعتمد رسمياً.`
+                  : `Cannot play or submit results for Round ${activeMatch?.round_id} until all matches in Round ${Number(activeMatch?.round_id) - 1} are completed and approved.`}
+              </p>
+            </div>
+          )}
+
           {/* Optional Notes Input */}
           <div className="p-4 rounded-xl bg-[#12161F] border border-slate-800">
             <label className="text-xs font-bold text-slate-300 block mb-1">
@@ -280,9 +303,12 @@ export const OperatorView: React.FC = () => {
             <input
               type="text"
               value={notes}
+              disabled={isRoundLocked}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={t('notes_placeholder')}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-cyan-500"
+              className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-cyan-500 ${
+                isRoundLocked ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             />
           </div>
 
@@ -291,39 +317,65 @@ export const OperatorView: React.FC = () => {
             {/* 1. TEAM A WINS */}
             <button
               onClick={() => handleSelectOutcome(teamA?.id ?? null, false)}
-              className="w-full py-5 px-6 rounded-2xl font-black text-lg md:text-xl uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-xl shadow-emerald-500/20 active:scale-[0.98] transition-all cursor-pointer glow-green flex items-center justify-between"
+              disabled={isRoundLocked}
+              className={`w-full py-5 px-6 rounded-2xl font-black text-lg md:text-xl uppercase tracking-wider transition-all flex items-center justify-between ${
+                isRoundLocked
+                  ? 'bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                  : 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-xl shadow-emerald-500/20 active:scale-[0.98] cursor-pointer glow-green'
+              }`}
             >
-              <span>{teamAName} {t('wins_short')}</span>
+              <span className="flex items-center gap-2">
+                {isRoundLocked && <Lock className="w-5 h-5 text-amber-400 shrink-0" />}
+                <span>{teamAName} {t('wins_short')}</span>
+              </span>
               <span className="text-sm font-mono-esports bg-black/30 px-3 py-1 rounded-xl">
-                +1 PT
+                {isRoundLocked ? 'LOCKED' : '+1 PT'}
               </span>
             </button>
 
             {/* 2. TEAM B WINS */}
             <button
               onClick={() => handleSelectOutcome(teamB?.id ?? null, false)}
-              className="w-full py-5 px-6 rounded-2xl font-black text-lg md:text-xl uppercase tracking-wider bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all cursor-pointer glow-blue flex items-center justify-between"
+              disabled={isRoundLocked}
+              className={`w-full py-5 px-6 rounded-2xl font-black text-lg md:text-xl uppercase tracking-wider transition-all flex items-center justify-between ${
+                isRoundLocked
+                  ? 'bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                  : 'bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-xl shadow-blue-500/20 active:scale-[0.98] cursor-pointer glow-blue'
+              }`}
             >
-              <span>{teamBName} {t('wins_short')}</span>
+              <span className="flex items-center gap-2">
+                {isRoundLocked && <Lock className="w-5 h-5 text-amber-400 shrink-0" />}
+                <span>{teamBName} {t('wins_short')}</span>
+              </span>
               <span className="text-sm font-mono-esports bg-black/30 px-3 py-1 rounded-xl">
-                +1 PT
+                {isRoundLocked ? 'LOCKED' : '+1 PT'}
               </span>
             </button>
 
             {/* 3. DRAW */}
             <button
               onClick={() => handleSelectOutcome(null, true)}
-              className="w-full py-4 px-6 rounded-2xl font-black text-base md:text-lg uppercase tracking-wider bg-slate-800 hover:bg-slate-700 text-yellow-400 border border-yellow-500/30 shadow-lg active:scale-[0.98] transition-all cursor-pointer flex items-center justify-between"
+              disabled={isRoundLocked}
+              className={`w-full py-4 px-6 rounded-2xl font-black text-base md:text-lg uppercase tracking-wider transition-all flex items-center justify-between ${
+                isRoundLocked
+                  ? 'bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                  : 'bg-slate-800 hover:bg-slate-700 text-yellow-400 border border-yellow-500/30 shadow-lg active:scale-[0.98] cursor-pointer'
+              }`}
             >
-              <span>🤝 {t('draw')}</span>
+              <span className="flex items-center gap-2">
+                {isRoundLocked && <Lock className="w-4 h-4 text-amber-400 shrink-0" />}
+                <span>🤝 {t('draw')}</span>
+              </span>
               <span className="text-xs font-mono-esports bg-black/40 px-2.5 py-1 rounded-lg text-slate-300">
-                0 PTS
+                {isRoundLocked ? 'LOCKED' : '0 PTS'}
               </span>
             </button>
           </div>
 
           <p className="text-center text-xs text-slate-400 pt-1">
-            Note: Results can be submitted anytime before, at, or after the 10-minute timer expires.
+            {isRoundLocked
+              ? (language === 'ar' ? '⚠️ هذه الجولة مقفلة ولا يمكن التعديل عليها حتى إنهاء الجولة السابقة.' : '⚠️ This round is locked until previous round completes.')
+              : 'Note: Results can be submitted anytime before, at, or after the 10-minute timer expires.'}
           </p>
         </div>
       )}

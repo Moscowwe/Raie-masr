@@ -6,11 +6,11 @@ import confetti from 'canvas-confetti';
 import {
   Trophy,
   Gamepad2,
-  CircleDot,
+  Brain,
   Fish,
   Armchair,
   Swords,
-  Zap,
+  Telescope,
   CheckCircle2,
   Tv,
 } from 'lucide-react';
@@ -47,7 +47,8 @@ export const PublicView: React.FC = () => {
   const getStationIcon = (iconName?: string) => {
     switch (iconName) {
       case 'circle-dot':
-        return <CircleDot className="w-5 h-5 text-cyan-400" />;
+      case 'brain':
+        return <Brain className="w-5 h-5 text-cyan-400" />;
       case 'fish':
         return <Fish className="w-5 h-5 text-blue-400" />;
       case 'armchair':
@@ -55,7 +56,8 @@ export const PublicView: React.FC = () => {
       case 'swords':
         return <Swords className="w-5 h-5 text-rose-400" />;
       case 'zap':
-        return <Zap className="w-5 h-5 text-amber-400" />;
+      case 'telescope':
+        return <Telescope className="w-5 h-5 text-amber-400" />;
       default:
         return <Gamepad2 className="w-5 h-5 text-cyan-400" />;
     }

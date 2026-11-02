@@ -49,6 +49,22 @@ export const translations: Translations = {
     en: 'Round Active',
     ar: 'الجولة نشطة',
   },
+  round_locked: {
+    en: 'Round Locked',
+    ar: 'الجولة مغلقة',
+  },
+  round_locked_desc: {
+    en: 'This round cannot be played until all matches in the previous round are completed.',
+    ar: 'لا يمكن لعب هذه الجولة أو اختيار أي فائز حتى تكتمل جميع مباريات الجولة السابقة.',
+  },
+  cannot_pick_winner_locked: {
+    en: 'Round Locked: You cannot choose a winner until the previous round is completely played.',
+    ar: 'الجولة مقفلة: لا يمكن اختيار فائز حتى يتم إنهاء جميع مباريات الجولة السابقة أولاً.',
+  },
+  cannot_start_locked_round: {
+    en: 'Round Locked: Previous round must be completed before starting this round.',
+    ar: 'الجولة مقفلة: يجب إنهاء واعتماد الجولة السابقة أولاً قبل بدء المؤقت.',
+  },
   round_paused: {
     en: 'Timer Paused',
     ar: 'المؤقت متوقف مؤقتاً',

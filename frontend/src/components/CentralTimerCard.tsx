@@ -2,7 +2,7 @@ import React from 'react';
 import { useTournament } from '../context/TournamentContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
-import { Play, Pause, RotateCcw, StopCircle, Settings } from 'lucide-react';
+import { Play, Pause, RotateCcw, StopCircle, Settings, Lock } from 'lucide-react';
 
 interface CentralTimerCardProps {
   onOpenDurationModal?: () => void;
@@ -20,6 +20,11 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
   const isAdmin = user?.role === 'admin';
   const roundNumber = snapshot?.current_round ?? 1;
 
+  const isRoundLocked = roundNumber > 1 && (
+    snapshot?.all_matches.some((m) => m.round_id < roundNumber && m.status !== 'completed') ||
+    snapshot?.rounds.find((prevR) => prevR.round_number === roundNumber - 1)?.status !== 'completed'
+  );
+
   const remainingSeconds = currentTimer?.remaining_seconds ?? 600;
   const durationSeconds = currentTimer?.duration_seconds ?? 600;
   const status = currentTimer?.status ?? 'idle';
@@ -32,6 +37,13 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
 
   // Status Styling
   const getStatusBadge = () => {
+    if (isRoundLocked) {
+      return {
+        label: `${t('round_locked')} • ${t('round')} ${roundNumber - 1} ${t('awaiting_results')}`,
+        bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        dot: 'bg-amber-400',
+      };
+    }
     switch (status) {
       case 'running':
         return {
@@ -129,10 +141,24 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
             {status !== 'running' ? (
               <button
                 onClick={status === 'paused' ? resumeRound : startRound}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-lg shadow-blue-500/25 transition-all transform active:scale-95 cursor-pointer glow-blue"
+                disabled={isRoundLocked}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all transform ${
+                  isRoundLocked
+                    ? 'bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                    : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-lg shadow-blue-500/25 active:scale-95 cursor-pointer glow-blue'
+                }`}
+                title={isRoundLocked ? t('cannot_start_locked_round') : undefined}
               >
-                <Play className="w-4 h-4 fill-white" />
-                {status === 'paused' ? t('resume_timer') : t('start_round')}
+                {isRoundLocked ? (
+                  <Lock className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Play className="w-4 h-4 fill-white" />
+                )}
+                {isRoundLocked
+                  ? t('round_locked')
+                  : status === 'paused'
+                  ? t('resume_timer')
+                  : t('start_round')}
               </button>
             ) : (
               <button

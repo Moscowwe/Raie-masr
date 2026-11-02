@@ -41,6 +41,20 @@ class ResultService
             ]);
         }
 
+        // Validation 3: Round sequencing - Round N cannot be submitted until previous rounds are completed
+        $round = $match->round;
+        if ($round && $round->round_number > 1) {
+            $prevIncomplete = TournamentMatch::whereHas('round', function ($q) use ($round) {
+                $q->where('round_number', '<', $round->round_number);
+            })->where('status', '!=', 'completed')->exists();
+
+            if ($prevIncomplete) {
+                throw ValidationException::withMessages([
+                    'round' => "Cannot submit results for Round {$round->round_number}: Previous rounds must be completed first.",
+                ]);
+            }
+        }
+
         // Validation 3: Ensure winner is one of the competing teams (unless it is a draw)
         if ($isDraw) {
             $winnerTeamId = null;
