@@ -81,9 +81,17 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const channelRef = useRef<any>(null);
+  const snapshotRef = useRef<TournamentSnapshot | null>(snapshot);
+
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
+
   const broadcastSupabase = useCallback((event: string, payload?: any) => {
     try {
-      supabase.channel(REALTIME_CHANNEL).send({
+      const ch = channelRef.current || supabase.channel(REALTIME_CHANNEL);
+      ch.send({
         type: 'broadcast',
         event,
         payload: payload || {},
@@ -145,8 +153,51 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const channel = supabase.channel(REALTIME_CHANNEL, {
       config: { broadcast: { self: false } },
     });
+    channelRef.current = channel;
+
+    // Helper: Apply incoming authoritative snapshot across state, timer, and persistent cache
+    const applySyncedSnapshot = (incomingSnapshot?: TournamentSnapshot | null) => {
+      if (!incomingSnapshot) return;
+      setSnapshot(incomingSnapshot);
+      if (incomingSnapshot.timer) {
+        setCurrentTimer(incomingSnapshot.timer);
+        if (incomingSnapshot.timer.status !== 'expired') {
+          hasBuzzerPlayedRef.current = false;
+        }
+      }
+      saveStandaloneSnapshot(incomingSnapshot);
+    };
 
     channel
+      .on('broadcast', { event: 'RequestSnapshotSync' }, () => {
+        // Active peer responds to newly connected / waking peer with latest snapshot
+        if (snapshotRef.current) {
+          channel.send({
+            type: 'broadcast',
+            event: 'SnapshotSyncResponse',
+            payload: { snapshot: snapshotRef.current },
+          });
+        }
+      })
+      .on('broadcast', { event: 'SnapshotSyncResponse' }, (payload) => {
+        const incoming = payload.payload?.snapshot;
+        if (incoming) {
+          applySyncedSnapshot(incoming);
+        }
+      })
+      .on('broadcast', { event: 'TimerHeartbeat' }, (payload) => {
+        const p = payload.payload;
+        if (!p) return;
+        setCurrentTimer((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            status: p.status,
+            expires_at: p.expires_at,
+            remaining_seconds: p.remaining_seconds,
+          };
+        });
+      })
       .on('broadcast', { event: 'RoundStarted' }, (payload) => {
         soundController.playWhistle();
         const roundNum = payload.payload?.roundNumber ?? 1;
@@ -154,6 +205,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const duration = payload.payload?.duration_seconds ?? 600;
 
         addToast('info', 'Round Started', `Round ${roundNum} has officially begun!`);
+
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
 
         setSnapshot((prev) => {
           if (!prev) return prev;
@@ -169,8 +225,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return next;
         });
       })
-      .on('broadcast', { event: 'RoundPaused' }, () => {
+      .on('broadcast', { event: 'RoundPaused' }, (payload) => {
         addToast('warning', 'Timer Paused', 'Round timer was paused by administrator.');
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
         setSnapshot((prev) => {
           if (!prev || !prev.timer) return prev;
           const updatedTimer: RoundTimer = {
@@ -185,6 +245,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       })
       .on('broadcast', { event: 'RoundResumed' }, (payload) => {
         addToast('info', 'Timer Resumed', 'Round timer resumed.');
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
         const expiresAt = payload.payload?.expires_at;
         setSnapshot((prev) => {
           if (!prev || !prev.timer) return prev;
@@ -199,9 +263,13 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return next;
         });
       })
-      .on('broadcast', { event: 'RoundTimeExpired' }, () => {
+      .on('broadcast', { event: 'RoundTimeExpired' }, (payload) => {
         soundController.playBuzzer();
         addToast('warning', 'TIME EXPIRED', 'Round timer has ended. Awaiting operator results.');
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
         setSnapshot((prev) => {
           if (!prev || !prev.timer) return prev;
           const updatedTimer: RoundTimer = {
@@ -215,9 +283,13 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return next;
         });
       })
-      .on('broadcast', { event: 'RoundTimerReset' }, () => {
+      .on('broadcast', { event: 'RoundTimerReset' }, (payload) => {
         addToast('info', 'Timer Reset', 'Timer was reset to default.');
         hasBuzzerPlayedRef.current = false;
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
         setSnapshot((prev) => {
           if (!prev || !prev.timer) return prev;
           const updatedTimer: RoundTimer = {
@@ -233,6 +305,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       })
       .on('broadcast', { event: 'RoundTimerDurationChanged' }, (payload) => {
         const dur = payload.payload?.durationSeconds ?? 600;
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
         setSnapshot((prev) => {
           if (!prev || !prev.timer) return prev;
           const updatedTimer: RoundTimer = {
@@ -247,6 +323,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         });
       })
       .on('broadcast', { event: 'RoundSelected' }, (payload) => {
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
         const rNum = payload.payload?.roundNumber ?? 1;
         setSnapshot((prev) => {
           if (!prev) return prev;
@@ -267,6 +347,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const p = payload.payload;
         const game = p?.game_name_en || 'Match Station';
         addToast('success', 'Result Submitted', `${game}: Result officially recorded!`);
+
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
 
         setSnapshot((prev) => {
           if (!prev) return prev;
@@ -308,6 +393,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const game = p?.game_name_en || 'Match Station';
         addToast('info', 'Result Corrected', `${game}: Administrator corrected result.`);
 
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
+
         setSnapshot((prev) => {
           if (!prev) return prev;
           const updatedMatches = prev.all_matches.map((m) => {
@@ -348,6 +438,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       .on('broadcast', { event: 'MatchReadyStatusChanged' }, (payload) => {
         const p = payload.payload;
         if (!p?.matchId) return;
+
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
+
         setSnapshot((prev) => {
           if (!prev) return prev;
           const updatedMatches = prev.all_matches.map((m) => {
@@ -376,6 +472,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const rNum = payload.payload?.roundNumber ?? 1;
         addToast('success', 'Round Completed', `Round ${rNum} is complete!`);
 
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
+
         setSnapshot((prev) => {
           if (!prev) return prev;
           const nextRoundNum = Math.min(5, rNum + 1);
@@ -403,6 +504,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       .on('broadcast', { event: 'PointsAdjusted' }, (payload) => {
         const p = payload.payload;
         addToast('info', 'Points Adjusted', `Administrator adjusted points (${p.delta >= 0 ? `+${p.delta}` : p.delta}).`);
+        if (payload.payload?.snapshot) {
+          applySyncedSnapshot(payload.payload.snapshot);
+          return;
+        }
         setSnapshot((prev) => {
           if (!prev) return prev;
           const currentAdj = prev.point_adjustments || {};
@@ -445,10 +550,31 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           setIsConnected(true);
+          // Instantly request latest state from any connected peer
+          setTimeout(() => {
+            channel.send({
+              type: 'broadcast',
+              event: 'RequestSnapshotSync',
+              payload: {},
+            });
+          }, 200);
         }
       });
 
+    // Auto sync when phone screen wakes up or tab is focused
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        channel.send({
+          type: 'broadcast',
+          event: 'RequestSnapshotSync',
+          payload: {},
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       supabase.removeChannel(channel);
     };
   }, [addToast]);
@@ -469,7 +595,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           hasBuzzerPlayedRef.current = true;
           soundController.playBuzzer();
           addToast('warning', 'TIME EXPIRED', 'Round timer has expired! Awaiting match submissions.');
-          broadcastSupabase('RoundTimeExpired');
+          broadcastSupabase('RoundTimeExpired', { snapshot: snapshotRef.current });
         }
 
         setCurrentTimer((prev) =>
@@ -485,6 +611,15 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setCurrentTimer((prev) =>
           prev ? { ...prev, remaining_seconds: remaining } : null
         );
+
+        // Lightweight heartbeat synchronization every 3 seconds to keep all devices locked in
+        if (remaining % 3 === 0 && remaining !== timerTickRef.current) {
+          broadcastSupabase('TimerHeartbeat', {
+            status: 'running',
+            expires_at: currentTimer.expires_at,
+            remaining_seconds: remaining,
+          });
+        }
       }
     }, 250);
 
@@ -515,6 +650,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const expiresAt = new Date(Date.now() + duration * 1000).toISOString();
 
     // Standalone state update
+    let nextSnapshot: TournamentSnapshot | null = null;
     setSnapshot((prev) => {
       if (!prev) return prev;
       const updatedTimer: RoundTimer = {
@@ -530,6 +666,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = { ...prev, timer: updatedTimer };
       saveStandaloneSnapshot(next);
       setCurrentTimer(updatedTimer);
+      nextSnapshot = next;
       return next;
     });
 
@@ -538,6 +675,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       roundNumber: roundNum,
       expires_at: expiresAt,
       duration_seconds: duration,
+      snapshot: nextSnapshot,
     });
 
     if (token && !token.startsWith('mock-')) {
@@ -555,6 +693,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const pauseRound = async (): Promise<boolean> => {
     soundController.playClick();
+    let nextSnapshot: TournamentSnapshot | null = null;
     setSnapshot((prev) => {
       if (!prev || !prev.timer) return prev;
       const updatedTimer: RoundTimer = {
@@ -565,10 +704,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = { ...prev, timer: updatedTimer };
       saveStandaloneSnapshot(next);
       setCurrentTimer(updatedTimer);
+      nextSnapshot = next;
       return next;
     });
 
-    broadcastSupabase('RoundPaused');
+    broadcastSupabase('RoundPaused', { snapshot: nextSnapshot });
 
     if (token && !token.startsWith('mock-')) {
       try {
@@ -588,6 +728,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const remaining = currentTimer?.remaining_seconds || 600;
     const expiresAt = new Date(Date.now() + remaining * 1000).toISOString();
 
+    let nextSnapshot: TournamentSnapshot | null = null;
     setSnapshot((prev) => {
       if (!prev || !prev.timer) return prev;
       const updatedTimer: RoundTimer = {
@@ -598,10 +739,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = { ...prev, timer: updatedTimer };
       saveStandaloneSnapshot(next);
       setCurrentTimer(updatedTimer);
+      nextSnapshot = next;
       return next;
     });
 
-    broadcastSupabase('RoundResumed', { expires_at: expiresAt });
+    broadcastSupabase('RoundResumed', { expires_at: expiresAt, snapshot: nextSnapshot });
 
     if (token && !token.startsWith('mock-')) {
       try {
@@ -621,6 +763,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     hasBuzzerPlayedRef.current = true;
     soundController.playBuzzer();
 
+    let nextSnapshot: TournamentSnapshot | null = null;
     setSnapshot((prev) => {
       if (!prev || !prev.timer) return prev;
       const updatedTimer: RoundTimer = {
@@ -631,10 +774,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = { ...prev, timer: updatedTimer };
       saveStandaloneSnapshot(next);
       setCurrentTimer(updatedTimer);
+      nextSnapshot = next;
       return next;
     });
 
-    broadcastSupabase('RoundTimeExpired');
+    broadcastSupabase('RoundTimeExpired', { snapshot: nextSnapshot });
 
     if (token && !token.startsWith('mock-')) {
       try {
@@ -653,6 +797,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     soundController.playClick();
     hasBuzzerPlayedRef.current = false;
 
+    let nextSnapshot: TournamentSnapshot | null = null;
     setSnapshot((prev) => {
       if (!prev || !prev.timer) return prev;
       const dur = prev.timer.duration_seconds || 600;
@@ -666,10 +811,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = { ...prev, timer: updatedTimer };
       saveStandaloneSnapshot(next);
       setCurrentTimer(updatedTimer);
+      nextSnapshot = next;
       return next;
     });
 
-    broadcastSupabase('RoundTimerReset');
+    broadcastSupabase('RoundTimerReset', { snapshot: nextSnapshot });
 
     if (token && !token.startsWith('mock-')) {
       try {
@@ -687,6 +833,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const setTimerDuration = async (durationSeconds: number): Promise<boolean> => {
     soundController.playClick();
 
+    let nextSnapshot: TournamentSnapshot | null = null;
     setSnapshot((prev) => {
       if (!prev || !prev.timer) return prev;
       const updatedTimer: RoundTimer = {
@@ -697,10 +844,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = { ...prev, timer: updatedTimer };
       saveStandaloneSnapshot(next);
       setCurrentTimer(updatedTimer);
+      nextSnapshot = next;
       return next;
     });
 
-    broadcastSupabase('RoundTimerDurationChanged', { durationSeconds });
+    broadcastSupabase('RoundTimerDurationChanged', { durationSeconds, snapshot: nextSnapshot });
 
     if (token && !token.startsWith('mock-')) {
       try {
@@ -740,6 +888,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
+    let nextSnapshot: TournamentSnapshot | null = null;
     setSnapshot((prev) => {
       if (!prev) return prev;
       const currentRoundMatches = prev.all_matches.filter((m) => m.round_id === roundNumber);
@@ -751,10 +900,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         current_round_matches: currentRoundMatches,
       };
       saveStandaloneSnapshot(next);
+      nextSnapshot = next;
       return next;
     });
 
-    broadcastSupabase('RoundSelected', { roundNumber });
+    broadcastSupabase('RoundSelected', { roundNumber, snapshot: nextSnapshot });
 
     if (token && !token.startsWith('mock-')) {
       try {
@@ -783,6 +933,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     soundController.playSuccess();
     const nextRoundNum = Math.min(5, roundNumber + 1);
 
+    let nextSnapshot: TournamentSnapshot | null = null;
     setSnapshot((prev) => {
       if (!prev) return prev;
       const updatedRounds = prev.rounds.map((r) => {
@@ -803,10 +954,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         current_round_matches: currentRoundMatches,
       };
       saveStandaloneSnapshot(next);
+      nextSnapshot = next;
       return next;
     });
 
-    broadcastSupabase('RoundCompleted', { roundNumber });
+    broadcastSupabase('RoundCompleted', { roundNumber, snapshot: nextSnapshot });
 
     if (token && !token.startsWith('mock-')) {
       try {
@@ -832,6 +984,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const gameName = targetMatch.game?.name_ar || targetMatch.game?.name_en || 'المحطة';
     const readyAt = isReady ? new Date().toISOString() : null;
 
+    let nextSnapshot: TournamentSnapshot | null = null;
     setSnapshot((prev) => {
       if (!prev) return prev;
       const updatedMatches = prev.all_matches.map((m) => {
@@ -852,6 +1005,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         current_round_matches: currentRoundMatches,
       };
       saveStandaloneSnapshot(next);
+      nextSnapshot = next;
       return next;
     });
 
@@ -877,6 +1031,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       gameName,
       operatorId: user?.id,
       operatorName: user?.name,
+      snapshot: nextSnapshot,
     });
 
     if (token && !token.startsWith('mock-')) {
@@ -926,6 +1081,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     // Standalone update
+    let nextSnapshot: TournamentSnapshot | null = null;
     setSnapshot((prev) => {
       if (!prev) return prev;
       const updatedMatches = prev.all_matches.map((m) => {
@@ -987,6 +1143,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         stats: computeStats(updatedMatches),
       };
       saveStandaloneSnapshot(next);
+      nextSnapshot = next;
       return next;
     });
 
@@ -1002,7 +1159,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           'الجولة التالية مفتوحة!',
           `🎉 اكتملت جميع مباريات الجولة ${targetMatch.round_id}! تم فتح الجولة ${targetMatch.round_id + 1} تلقائياً.`
         );
-        broadcastSupabase('RoundCompleted', { roundNumber: targetMatch.round_id });
+        broadcastSupabase('RoundCompleted', { roundNumber: targetMatch.round_id, snapshot: nextSnapshot });
       }
     }
 
@@ -1014,6 +1171,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       operatorId: user?.id,
       operatorName: user?.name,
       game_name_en: gameName,
+      snapshot: nextSnapshot,
     });
 
     if (token && !token.startsWith('mock-')) {
@@ -1050,6 +1208,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const targetMatch = snapshot?.all_matches.find((m) => m.id === matchId);
     const gameName = targetMatch?.game?.name_en || 'Match Station';
 
+    let nextSnapshot: TournamentSnapshot | null = null;
+
     setSnapshot((prev) => {
       if (!prev) return prev;
       const updatedMatches = prev.all_matches.map((m) => {
@@ -1083,6 +1243,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         leaderboard: computeLeaderboard(updatedMatches, prev.point_adjustments || {}),
         stats: computeStats(updatedMatches),
       };
+      nextSnapshot = next;
       saveStandaloneSnapshot(next);
       return next;
     });
@@ -1097,6 +1258,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       reason,
       notes,
       game_name_en: gameName,
+      snapshot: nextSnapshot,
     });
 
     if (token && !token.startsWith('mock-')) {
@@ -1130,6 +1292,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const team = snapshot.teams.find((t) => t.id === teamId);
     const teamName = team ? (team.name_ar || team.name) : `Team ${teamId}`;
 
+    let nextSnapshot: TournamentSnapshot | null = null;
+
     setSnapshot((prev) => {
       if (!prev) return prev;
       const currentAdj = prev.point_adjustments || {};
@@ -1151,6 +1315,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         leaderboard: updatedLeaderboard,
         recent_activities: [activity, ...(prev.recent_activities || [])].slice(0, 25),
       };
+      nextSnapshot = next;
       saveStandaloneSnapshot(next);
       return next;
     });
@@ -1162,7 +1327,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       `تم تطبيق ${delta >= 0 ? `+${delta}` : delta} نقطة للفريق: ${teamName}`
     );
 
-    broadcastSupabase('PointsAdjusted', { teamId, delta, reason });
+    broadcastSupabase('PointsAdjusted', { teamId, delta, reason, snapshot: nextSnapshot });
     return true;
   };
 
