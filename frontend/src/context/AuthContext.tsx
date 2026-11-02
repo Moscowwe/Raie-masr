@@ -12,16 +12,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+export const DEFAULT_ADMIN_USER: User = {
+  id: 1,
+  name: 'Main Administrator',
+  email: 'admin@ccc.local',
+  role: 'admin',
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('ccc_token'));
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('ccc_token') || 'mock-admin-token');
   const [user, setUser] = useState<User | null>(() => {
     const cached = localStorage.getItem('ccc_user');
-    return cached ? JSON.parse(cached) : null;
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        // fallback
+      }
+    }
+    return DEFAULT_ADMIN_USER;
   });
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   useEffect(() => {
-    if (token) {
+    if (token && !token.startsWith('mock-')) {
       // Validate token with backend /api/auth/me
       fetch('/api/auth/me', {
         headers: {
@@ -34,12 +48,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (data.success && data.user) {
             setUser(data.user);
             localStorage.setItem('ccc_user', JSON.stringify(data.user));
-          } else {
-            // Token expired or invalid
-            setToken(null);
-            setUser(null);
-            localStorage.removeItem('ccc_token');
-            localStorage.removeItem('ccc_user');
           }
         })
         .catch(() => {

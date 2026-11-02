@@ -34,15 +34,12 @@ export const CorrectResultModal: React.FC<CorrectResultModalProps> = ({
   const teamBName = language === 'ar' ? match.teamB?.name_ar : match.teamB?.name;
 
   const handleSubmit = async () => {
-    if (!reason.trim()) {
-      setError(t('correction_reason'));
-      return;
-    }
+    const finalReason = reason.trim() || (language === 'ar' ? 'تصحيح إداري لنتيجة المباراة' : 'Administrative match correction');
 
     setIsSubmitting(true);
     setError(null);
 
-    const success = await onConfirm(selectedWinnerId, isDraw, reason.trim(), notes.trim() || undefined);
+    const success = await onConfirm(selectedWinnerId, isDraw, finalReason, notes.trim() || undefined);
     setIsSubmitting(false);
 
     if (success) {
@@ -138,7 +135,7 @@ export const CorrectResultModal: React.FC<CorrectResultModalProps> = ({
         {/* Reason for Correction */}
         <div className="mb-4">
           <label className="text-xs font-bold text-slate-300 block mb-1">
-            {t('correction_reason')} <span className="text-rose-400">*</span>
+            {t('correction_reason')} <span className="text-slate-500 font-normal">({language === 'ar' ? 'اختياري' : 'optional'})</span>
           </label>
           <input
             type="text"

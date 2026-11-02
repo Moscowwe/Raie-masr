@@ -1,7 +1,6 @@
 import React from 'react';
 import type { TournamentMatch } from '../types/tournament';
 import { useLanguage } from '../context/LanguageContext';
-import { useAuth } from '../context/AuthContext';
 import {
   Gamepad2,
   Brain,
@@ -30,8 +29,6 @@ export const MatchStationCard: React.FC<MatchStationCardProps> = ({
   isLocked = false,
 }) => {
   const { t, language } = useLanguage();
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
 
   const game = match.game;
   const teamA = match.teamA;
@@ -250,14 +247,23 @@ export const MatchStationCard: React.FC<MatchStationCardProps> = ({
         )}
 
         {/* Admin Result Override / Correction Action */}
-        {showAdminActions && isAdmin && isCompleted && onCorrectResult && (
+        {showAdminActions && onCorrectResult && (
           <div className="mt-4 pt-3 border-t border-slate-800/80">
             <button
+              type="button"
               onClick={() => onCorrectResult(match)}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 transition-colors cursor-pointer"
+              className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                isCompleted
+                  ? 'bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 glow-cyan'
+                  : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 hover:border-cyan-500/40'
+              }`}
             >
-              <Edit3 className="w-3.5 h-3.5" />
-              {t('correct_result_btn')}
+              <Edit3 className="w-3.5 h-3.5 text-cyan-400" />
+              <span>
+                {isCompleted
+                  ? (language === 'ar' ? 'تعديل سكور / نتيجة المباراة' : 'Edit Match Score / Winner')
+                  : (language === 'ar' ? 'تسجيل / تعديل سكور المباراة' : 'Record / Edit Match Score')}
+              </span>
             </button>
           </div>
         )}

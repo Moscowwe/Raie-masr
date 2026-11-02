@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useTournament } from '../context/TournamentContext';
 import { useLanguage } from '../context/LanguageContext';
-import { useAuth } from '../context/AuthContext';
 import { CentralTimerCard } from '../components/CentralTimerCard';
 import { MatchStationCard } from '../components/MatchStationCard';
 import { LeaderboardTable } from '../components/LeaderboardTable';
@@ -24,7 +23,6 @@ import {
 export const AdminView: React.FC = () => {
   const { snapshot, selectRound, completeRound, correctResult, resetTournament, adjustTeamPoints, toggleMatchReady } = useTournament();
   const { t, language } = useLanguage();
-  const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'matches' | 'leaderboard' | 'activity'>('matches');
   const [isDurationModalOpen, setIsDurationModalOpen] = useState(false);
@@ -63,17 +61,6 @@ export const AdminView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Admin Notice if user is not logged in as Admin */}
-      {user?.role !== 'admin' && (
-        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-            <p className="text-xs text-amber-300 m-0">
-              You are currently viewing the Control Room in preview mode. Switch to <strong>Main Administrator</strong> account to trigger timer controls and round advancement.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Prominent Central Timer */}
       <CentralTimerCard
@@ -304,32 +291,28 @@ export const AdminView: React.FC = () => {
 
         {/* Right Actions: Reset Tournament & View Mode Tabs */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {user?.role === 'admin' && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedTeamForPoints(null);
-                  setIsAdjustPointsModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:border-cyan-500/50 text-xs font-bold transition-all cursor-pointer shadow-sm"
-                title={language === 'ar' ? 'إضافة نقاط أو خصم نقاط لفريق مباشرة' : 'Adjust points for any team'}
-              >
-                <Award className="w-3.5 h-3.5 text-cyan-400" />
-                <span>{language === 'ar' ? 'إعطاء / تعديل نقاط' : 'Award Points (+/-)'}</span>
-              </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedTeamForPoints(null);
+              setIsAdjustPointsModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 hover:from-blue-500 hover:to-cyan-400 text-white border border-cyan-400/50 text-xs font-black transition-all cursor-pointer shadow-lg shadow-cyan-500/25 glow-cyan active:scale-95"
+            title={language === 'ar' ? 'إضافة نقاط أو خصم نقاط لفريق مباشرة' : 'Adjust points for any team'}
+          >
+            <Award className="w-4 h-4 text-white" />
+            <span>{language === 'ar' ? 'تعديل السكور والنقاط (+/-)' : 'Adjust Score & Points (+/-)'}</span>
+          </button>
 
-              <button
-                type="button"
-                onClick={() => setIsResetModalOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 text-xs font-bold transition-all cursor-pointer shadow-sm"
-                title={language === 'ar' ? 'تصفير نتائج البطولة بالكامل والبدء من جديد' : 'Reset Tournament'}
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
-                <span>{language === 'ar' ? 'تصفير البطولة' : 'Reset All'}</span>
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsResetModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 text-xs font-bold transition-all cursor-pointer shadow-sm"
+            title={language === 'ar' ? 'تصفير نتائج البطولة بالكامل والبدء من جديد' : 'Reset Tournament'}
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+            <span>{language === 'ar' ? 'تصفير البطولة' : 'Reset All'}</span>
+          </button>
 
           {/* View Mode Tabs (Matches / Leaderboard / Audit Log) */}
           <div className="flex items-center p-1 bg-slate-900 rounded-xl border border-slate-800">
@@ -389,22 +372,37 @@ export const AdminView: React.FC = () => {
               </p>
             </div>
 
-            {/* Complete Round Action Button */}
-            {user?.role === 'admin' && activeRound?.status !== 'completed' && (
+            {/* Action Buttons: Adjust Score + Complete Round */}
+            <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={handleCompleteRound}
-                disabled={isAdvancingRound || !allMatchesDone}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                  allMatchesDone
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-lg shadow-emerald-500/25 glow-green'
-                    : 'bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed opacity-75'
-                }`}
-                title={allMatchesDone ? 'Complete Round' : t('pending_matches_warning')}
+                type="button"
+                onClick={() => {
+                  setSelectedTeamForPoints(null);
+                  setIsAdjustPointsModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm glow-cyan"
+                title={language === 'ar' ? 'إضافة أو خصم نقاط لأي فريق مباشرة' : 'Adjust Team Scores'}
               >
-                <CheckCircle2 className="w-4 h-4" />
-                {t('approve_round')}
+                <Award className="w-3.5 h-3.5 text-cyan-400" />
+                <span>{language === 'ar' ? 'تعديل سكور ونقاط الفرق (+/-)' : 'Adjust Team Scores (+/-)'}</span>
               </button>
-            )}
+
+              {activeRound?.status !== 'completed' && (
+                <button
+                  onClick={handleCompleteRound}
+                  disabled={isAdvancingRound || !allMatchesDone}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                    allMatchesDone
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-lg shadow-emerald-500/25 glow-green'
+                      : 'bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed opacity-75'
+                  }`}
+                  title={allMatchesDone ? 'Complete Round' : t('pending_matches_warning')}
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  {t('approve_round')}
+                </button>
+              )}
+            </div>
           </div>
 
           {advanceError && (
@@ -437,46 +435,45 @@ export const AdminView: React.FC = () => {
 
       {activeTab === 'leaderboard' && (
         <div className="space-y-4">
-          {user?.role === 'admin' && (
-            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-[#12161F] border border-slate-800 shadow-md">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400">
-                  <Award className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-white block">
-                    {language === 'ar' ? 'التحكم الإداري المباشر في نقاط الفرق' : 'Administrative Points Adjustment'}
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    {language === 'ar'
-                      ? 'يمكنك إضافة أو خصم نقاط لأي فريق مباشرة من لوحة التحكم مع تسجيل السبب'
-                      : 'Add bonus points or apply penalty deductions with audit log reason'}
-                  </span>
-                </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-[#12161F] border border-slate-800 shadow-md">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400">
+                <Award className="w-4 h-4" />
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedTeamForPoints(null);
-                  setIsAdjustPointsModalOpen(true);
-                }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-bold shadow-md shadow-blue-500/25 glow-blue transition-all cursor-pointer"
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                <span>{language === 'ar' ? 'إضافة / خصم نقاط لفريق' : 'Adjust Team Points'}</span>
-              </button>
+              <div>
+                <span className="text-xs font-bold text-white block">
+                  {language === 'ar' ? 'التحكم الإداري المباشر في نقاط وسكور الفرق' : 'Administrative Points Adjustment'}
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  {language === 'ar'
+                    ? 'يمكنك إضافة أو خصم نقاط لأي فريق مباشرة من لوحة التحكم مع تسجيل السبب'
+                    : 'Add bonus points or apply penalty deductions with audit log reason'}
+                </span>
+              </div>
             </div>
-          )}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedTeamForPoints(null);
+                setIsAdjustPointsModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-bold shadow-md shadow-blue-500/25 glow-blue transition-all cursor-pointer"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>{language === 'ar' ? 'إضافة / خصم نقاط لفريق' : 'Adjust Team Points'}</span>
+            </button>
+          </div>
 
           <LeaderboardTable
             leaderboard={leaderboard}
-            onAdjustPoints={user?.role === 'admin' ? (teamId) => {
+            onAdjustPoints={(teamId) => {
               setSelectedTeamForPoints(teamId);
               setIsAdjustPointsModalOpen(true);
-            } : undefined}
+            }}
           />
         </div>
       )}
+
 
       {activeTab === 'activity' && (
         <div className="rounded-2xl bg-[#12161F] border border-slate-800 p-5 shadow-xl">

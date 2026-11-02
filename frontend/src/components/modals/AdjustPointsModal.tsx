@@ -66,10 +66,7 @@ export const AdjustPointsModal: React.FC<AdjustPointsModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reason.trim()) {
-      setError(language === 'ar' ? 'يرجى كتابة سبب إضافة أو خصم النقاط' : 'Please provide a reason for the adjustment.');
-      return;
-    }
+    const finalReason = reason.trim() || (language === 'ar' ? 'تعديل إداري مباشر للنقاط' : 'Administrative score adjustment');
     if (delta === 0) {
       setError(language === 'ar' ? 'يجب أن تكون قيمة النقاط غير صفر' : 'Points delta cannot be zero.');
       return;
@@ -77,7 +74,7 @@ export const AdjustPointsModal: React.FC<AdjustPointsModalProps> = ({
 
     setError(null);
     setIsSubmitting(true);
-    await onConfirm(selectedTeamId, delta, reason.trim());
+    await onConfirm(selectedTeamId, delta, finalReason);
     setIsSubmitting(false);
     onClose();
   };
@@ -188,7 +185,7 @@ export const AdjustPointsModal: React.FC<AdjustPointsModalProps> = ({
           {/* Reason Input */}
           <div>
             <label className="text-xs font-bold text-slate-300 block mb-1.5">
-              {language === 'ar' ? 'سبب التعديل (مطلوب للتوثيق):' : 'Reason for Adjustment (Required for audit):'}
+              {language === 'ar' ? 'سبب التعديل (اختياري):' : 'Reason for Adjustment (Optional):'}
             </label>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {presetReasons.map((p, idx) => (
