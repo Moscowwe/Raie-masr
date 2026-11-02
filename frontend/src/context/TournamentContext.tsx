@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type {
   TournamentSnapshot,
+  TournamentMatch,
   RoundTimer,
   ActivityLog,
 } from '../types/tournament';
@@ -416,13 +417,30 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return next;
         });
       })
-      .on('broadcast', { event: 'TournamentReset' }, () => {
+      .on('broadcast', { event: 'TournamentReset' }, (payload) => {
         soundController.playSuccess();
-        const fresh = createInitialSnapshot();
+        hasBuzzerPlayedRef.current = false;
+        const baseFresh = payload.payload?.snapshot || createInitialSnapshot();
+        const fresh = {
+          ...baseFresh,
+          all_matches: baseFresh.all_matches.map((m: TournamentMatch) => ({
+            ...m,
+            status: 'pending' as const,
+            result: null,
+            is_ready: false,
+            ready_at: null,
+          })),
+          current_round: 1,
+          point_adjustments: {},
+        };
+        fresh.current_round_matches = fresh.all_matches.filter((m: TournamentMatch) => m.round_id === 1);
+        fresh.leaderboard = computeLeaderboard(fresh.all_matches, {});
+        fresh.stats = computeStats(fresh.all_matches);
+
         setSnapshot(fresh);
         setCurrentTimer(fresh.timer);
         saveStandaloneSnapshot(fresh);
-        addToast('warning', 'Tournament Reset', 'Tournament has been restarted by administrator.');
+        addToast('warning', 'Tournament Reset', 'تم تصفير جميع نتائج البطولة والمحطات بالكامل والعودة للجولة الأولى 1.');
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
@@ -1151,12 +1169,30 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Full Tournament Restart / Reset (Zero all matches, points, and timers)
   const resetTournament = async (): Promise<boolean> => {
     soundController.playClick();
-    const fresh = createInitialSnapshot();
+    hasBuzzerPlayedRef.current = false;
+
+    const baseFresh = createInitialSnapshot();
+    const fresh = {
+      ...baseFresh,
+      all_matches: baseFresh.all_matches.map((m) => ({
+        ...m,
+        status: 'pending' as const,
+        result: null,
+        is_ready: false,
+        ready_at: null,
+      })),
+      current_round: 1,
+      point_adjustments: {},
+    };
+    fresh.current_round_matches = fresh.all_matches.filter((m) => m.round_id === 1);
+    fresh.leaderboard = computeLeaderboard(fresh.all_matches, {});
+    fresh.stats = computeStats(fresh.all_matches);
+
     const resetActivity: ActivityLog = {
       id: Date.now(),
       user_name: user?.name || 'Administrator',
       action: 'TOURNAMENT_RESET',
-      details: 'تم تصفير البطولة بالكامل وإعادة ضبط جميع الجولات والنقاط والمؤقت المركزي.',
+      details: 'تم تصفير البطولة بالكامل وإعادة ضبط جميع الجولات والنقاط والمحطات والمؤقت المركزي.',
       created_at: new Date().toISOString(),
     };
     fresh.recent_activities = [resetActivity];
@@ -1169,10 +1205,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     addToast(
       'info',
       'تصفير البطولة',
-      'تم تصفير جميع نتائج الجولات والنقاط بالكامل والعودة للجولة الأولى 1.'
+      'تم تصفير جميع نتائج الجولات والنقاط والمحطات بالكامل والعودة للجولة الأولى 1.'
     );
 
-    broadcastSupabase('TournamentReset');
+    // Broadcast fresh snapshot to all devices and stations
+    broadcastSupabase('TournamentReset', { snapshot: fresh });
 
     if (token && !token.startsWith('mock-')) {
       try {

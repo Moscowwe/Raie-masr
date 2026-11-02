@@ -306,6 +306,10 @@ export function loadStandaloneSnapshot(): TournamentSnapshot {
 export function saveStandaloneSnapshot(snapshot: TournamentSnapshot): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    // Purge legacy storage keys so they never resurrect old completed matches
+    for (const oldKey of ['ccc_tournament_state_v5', 'ccc_tournament_state_v4', 'ccc_tournament_state_v3', 'ccc_tournament_state_v2', 'ccc_tournament_state_v1']) {
+      localStorage.removeItem(oldKey);
+    }
   } catch {
     // ignore
   }

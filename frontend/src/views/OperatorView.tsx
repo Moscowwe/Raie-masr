@@ -46,6 +46,16 @@ export const OperatorView: React.FC = () => {
   const result = activeMatch?.result;
   const isCompleted = activeMatch?.status === 'completed' && !!result;
 
+  // Auto-clear operator form when tournament or match is reset
+  React.useEffect(() => {
+    if (!activeMatch?.result) {
+      setSelectedWinnerId(null);
+      setIsDraw(false);
+      setNotes('');
+      setIsConfirmModalOpen(false);
+    }
+  }, [activeMatch?.id, activeMatch?.result, activeMatch?.status]);
+
   // Strict check: Is this round locked because previous rounds have incomplete matches?
   const isRoundLocked = activeMatch && activeMatch.round_id > 1
     ? snapshot?.all_matches.some((m) => m.round_id < activeMatch.round_id && m.status !== 'completed') ?? false

@@ -115,5 +115,20 @@ class TournamentController extends Controller
             'match' => $match,
         ]);
     }
+
+    /**
+     * Reset entire tournament to initial clean state (Admin only).
+     */
+    public function reset(Request $request)
+    {
+        $user = $request->user();
+        $snapshot = $this->tournamentService->resetTournament($user?->name ?? 'Admin');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tournament has been fully reset.',
+            'snapshot' => $snapshot,
+        ]);
+    }
 }
 

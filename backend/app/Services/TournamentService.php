@@ -206,4 +206,55 @@ class TournamentService
             'server_time' => Carbon::now()->toIso8601String(),
         ];
     }
+
+    /**
+     * Reset entire tournament to initial clean state.
+     */
+    public function resetTournament(?string $userName = 'Admin'): array
+    {
+        // 1. Delete all match results
+        \App\Models\MatchResult::query()->delete();
+
+        // 2. Reset all matches
+        TournamentMatch::query()->update([
+            'status' => 'pending',
+            'is_ready' => false,
+            'ready_at' => null,
+        ]);
+
+        // 3. Reset all rounds
+        Round::query()->update([
+            'status' => 'pending',
+            'started_at' => null,
+            'completed_at' => null,
+        ]);
+        Round::where('round_number', 1)->update([
+            'status' => 'active',
+            'started_at' => Carbon::now(),
+        ]);
+
+        // 4. Reset round timers
+        \App\Models\RoundTimer::query()->update([
+            'status' => 'idle',
+            'duration_seconds' => 600,
+            'remaining_seconds' => 600,
+            'started_at' => null,
+            'paused_at' => null,
+            'resumed_at' => null,
+            'expires_at' => null,
+            'expired_at' => null,
+        ]);
+
+        // 5. Reset setting to Round 1
+        $this->setCurrentRoundNumber(1);
+
+        ActivityLog::create([
+            'user_name' => $userName,
+            'action' => 'TOURNAMENT_RESET',
+            'details' => ['message' => 'Full tournament reset executed. All match results, scores, and station winners cleared.'],
+            'ip_address' => request()->ip(),
+        ]);
+
+        return $this->getFullSnapshot();
+    }
 }

@@ -59,4 +59,7 @@ Route::middleware([AuthenticateApiToken::class . ':admin'])->group(function () {
 
     // Teams Management
     Route::put('/teams/{teamId}', [TeamController::class, 'update']);
+
+    // Tournament Reset
+    Route::post('/tournament/reset', [TournamentController::class, 'reset']);
 });
