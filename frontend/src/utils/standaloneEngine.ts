@@ -207,6 +207,8 @@ export function createInitialSnapshot(): TournamentSnapshot {
         team_a_id: tA,
         team_b_id: tB,
         status: 'pending',
+        is_ready: false,
+        ready_at: null,
         round: roundObj,
         game: gameObj,
         teamA,

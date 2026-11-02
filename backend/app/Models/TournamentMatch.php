@@ -19,6 +19,13 @@ class TournamentMatch extends Model
         'team_a_id',
         'team_b_id',
         'status', // pending, in_progress, completed, cancelled
+        'is_ready',
+        'ready_at',
+    ];
+
+    protected $casts = [
+        'is_ready' => 'boolean',
+        'ready_at' => 'datetime',
     ];
 
     public function round(): BelongsTo

@@ -10,7 +10,6 @@ import {
   Swords,
   Telescope,
   CheckCircle2,
-  Clock,
   AlertTriangle,
   UserCheck,
   Edit3,
@@ -94,10 +93,18 @@ export const MatchStationCard: React.FC<MatchStationCardProps> = ({
         </span>
       );
     }
+    if (match.is_ready) {
+      return (
+        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 glow-green">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          {language === 'ar' ? 'جاهز (Ready) ✓' : 'Ready ✓'}
+        </span>
+      );
+    }
     return (
-      <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
-        <Clock className="w-3.5 h-3.5" />
-        {t('stats_pending')}
+      <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+        {language === 'ar' ? 'جاري الشرح ⏳' : 'Briefing ⏳'}
       </span>
     );
   };

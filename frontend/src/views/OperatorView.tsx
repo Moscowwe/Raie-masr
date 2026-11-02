@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const OperatorView: React.FC = () => {
-  const { snapshot, currentTimer, submitResult } = useTournament();
+  const { snapshot, currentTimer, submitResult, toggleMatchReady } = useTournament();
   const { t, language } = useLanguage();
   const { user, quickSwitch } = useAuth();
 
@@ -238,6 +238,101 @@ export const OperatorView: React.FC = () => {
       ) : (
         /* ACTIVE SELECTION INTERFACE (MOBILE-FIRST GIANT TOUCH CARDS) */
         <div className="space-y-5">
+          {/* Pre-Round Ready & Briefing Status */}
+          {timerStatus === 'idle' && (
+            !activeMatch?.is_ready ? (
+              <div className="p-5 md:p-6 rounded-2xl bg-gradient-to-b from-[#181E2C] to-[#121620] border-2 border-amber-500/40 shadow-xl space-y-4 relative overflow-hidden">
+                <div className="absolute -top-12 -right-12 w-40 h-40 bg-amber-500/15 rounded-full blur-2xl pointer-events-none" />
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+                    <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+                      {t('briefing_phase_title')}
+                    </span>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    {t('station_explaining')}
+                  </span>
+                </div>
+
+                <div className="text-right">
+                  <h3 className="text-base md:text-lg font-black text-white m-0">
+                    📢 وقت الشرح واستعداد الفريقين
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                    {t('briefing_phase_desc')}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => activeMatch && toggleMatchReady(activeMatch.id, true)}
+                  disabled={isRoundLocked}
+                  className={`w-full py-4 px-6 rounded-xl font-black text-base md:text-lg shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer border ${
+                    isRoundLocked
+                      ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white shadow-emerald-500/25 active:scale-95 border-emerald-400/40 glow-green'
+                  }`}
+                >
+                  <CheckCircle2 className="w-6 h-6 shrink-0" />
+                  <span>{t('mark_as_ready')}</span>
+                </button>
+              </div>
+            ) : (
+              <div className="p-5 md:p-6 rounded-2xl bg-gradient-to-b from-emerald-950/30 to-[#121620] border-2 border-emerald-500/50 shadow-xl space-y-3 relative overflow-hidden">
+                <div className="absolute -top-12 -right-12 w-40 h-40 bg-emerald-500/20 rounded-full blur-2xl pointer-events-none" />
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-300">
+                      {t('ready_confirmed_title')}
+                    </span>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    READY ✓
+                  </span>
+                </div>
+
+                <div className="text-right">
+                  <h3 className="text-base md:text-lg font-black text-white m-0 flex items-center justify-end gap-2">
+                    <span>تم إبلاغ غرفة التحكم بجاهزية محطتك!</span>
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                    {t('ready_confirmed_desc')}
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800 flex justify-between items-center text-xs">
+                  <span className="text-slate-400 text-[11px]">
+                    {activeMatch?.ready_at ? `جاهز منذ: ${new Date(activeMatch.ready_at).toLocaleTimeString()}` : ''}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => activeMatch && toggleMatchReady(activeMatch.id, false)}
+                    className="text-amber-400 hover:text-amber-300 hover:underline text-xs font-bold transition-all cursor-pointer"
+                  >
+                    {t('mark_as_not_ready')}
+                  </button>
+                </div>
+              </div>
+            )
+          )}
+
+          {timerStatus === 'running' && (
+            <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 text-xs text-amber-300 font-bold">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+                <span>{t('round_in_progress_banner')}</span>
+              </div>
+              <span className="font-mono-esports text-sm font-black text-amber-400">
+                {timerDisplay}
+              </span>
+            </div>
+          )}
+
           {/* Two Large Team Cards */}
           <div className="grid grid-cols-2 gap-4">
             {/* Team A Touch Card */}

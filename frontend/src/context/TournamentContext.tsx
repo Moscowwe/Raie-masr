@@ -41,7 +41,8 @@ interface TournamentContextType {
   // Admin Round Management
   selectRound: (roundNumber: number) => Promise<boolean>;
   completeRound: (roundNumber: number) => Promise<boolean>;
-  // Match Results
+  // Match Results & Readiness
+  toggleMatchReady: (matchId: number, isReady: boolean) => Promise<boolean>;
   submitResult: (matchId: number, winnerTeamId: number | null, isDraw: boolean, notes?: string) => Promise<boolean>;
   correctResult: (matchId: number, winnerTeamId: number | null, isDraw: boolean, reason: string, notes?: string) => Promise<boolean>;
   // Points Adjustment & Tournament Reset
@@ -338,6 +339,32 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             current_round_matches: currentRoundMatches,
             leaderboard: computeLeaderboard(updatedMatches, prev.point_adjustments || {}),
             stats: computeStats(updatedMatches),
+          };
+          saveStandaloneSnapshot(next);
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'MatchReadyStatusChanged' }, (payload) => {
+        const p = payload.payload;
+        if (!p?.matchId) return;
+        setSnapshot((prev) => {
+          if (!prev) return prev;
+          const updatedMatches = prev.all_matches.map((m) => {
+            if (m.id === p.matchId) {
+              return {
+                ...m,
+                is_ready: p.isReady,
+                ready_at: p.readyAt,
+              };
+            }
+            return m;
+          });
+
+          const currentRoundMatches = updatedMatches.filter((m) => m.round_id === prev.current_round);
+          const next = {
+            ...prev,
+            all_matches: updatedMatches,
+            current_round_matches: currentRoundMatches,
           };
           saveStandaloneSnapshot(next);
           return next;
@@ -776,6 +803,83 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return true;
   };
 
+  // Station Readiness (Ready / Briefing phase before starting round)
+  const toggleMatchReady = async (matchId: number, isReady: boolean): Promise<boolean> => {
+    soundController.playClick();
+    if (!snapshot) return false;
+
+    const targetMatch = snapshot.all_matches.find((m) => m.id === matchId);
+    if (!targetMatch) return false;
+
+    const gameName = targetMatch.game?.name_ar || targetMatch.game?.name_en || 'المحطة';
+    const readyAt = isReady ? new Date().toISOString() : null;
+
+    setSnapshot((prev) => {
+      if (!prev) return prev;
+      const updatedMatches = prev.all_matches.map((m) => {
+        if (m.id === matchId) {
+          return {
+            ...m,
+            is_ready: isReady,
+            ready_at: readyAt,
+          };
+        }
+        return m;
+      });
+
+      const currentRoundMatches = updatedMatches.filter((m) => m.round_id === prev.current_round);
+      const next = {
+        ...prev,
+        all_matches: updatedMatches,
+        current_round_matches: currentRoundMatches,
+      };
+      saveStandaloneSnapshot(next);
+      return next;
+    });
+
+    if (isReady) {
+      soundController.playSuccess();
+      addToast(
+        'success',
+        'تأكيد الجاهزية (Ready)',
+        `${gameName}: تم تأكيد الجاهزية وإبلاغ غرفة التحكم بنجاح!`
+      );
+    } else {
+      addToast(
+        'info',
+        'إلغاء الجاهزية',
+        `${gameName}: تم تحويل الحالة إلى جاري الشرح والاستعداد.`
+      );
+    }
+
+    broadcastSupabase('MatchReadyStatusChanged', {
+      matchId,
+      isReady,
+      readyAt,
+      gameName,
+      operatorId: user?.id,
+      operatorName: user?.name,
+    });
+
+    if (token && !token.startsWith('mock-')) {
+      try {
+        await fetch(`/api/matches/${matchId}/ready`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({ is_ready: isReady }),
+        });
+      } catch {
+        // ignore
+      }
+    }
+
+    return true;
+  };
+
   // Match Results
   const submitResult = async (
     matchId: number,
@@ -1102,6 +1206,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         selectRound,
         completeRound,
         submitResult,
+        toggleMatchReady,
         correctResult,
         adjustTeamPoints,
         resetTournament,

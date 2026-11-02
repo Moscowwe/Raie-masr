@@ -18,10 +18,11 @@ import {
   RotateCcw,
   SlidersHorizontal,
   Award,
+  Clock,
 } from 'lucide-react';
 
 export const AdminView: React.FC = () => {
-  const { snapshot, selectRound, completeRound, correctResult, resetTournament, adjustTeamPoints } = useTournament();
+  const { snapshot, selectRound, completeRound, correctResult, resetTournament, adjustTeamPoints, toggleMatchReady } = useTournament();
   const { t, language } = useLanguage();
   const { user } = useAuth();
 
@@ -44,6 +45,10 @@ export const AdminView: React.FC = () => {
 
   const completedCount = matches.filter((m) => m.status === 'completed' || m.status === 'cancelled').length;
   const allMatchesDone = matches.length > 0 && completedCount === matches.length;
+
+  const readyCount = matches.filter((m) => m.is_ready).length;
+  const totalCount = matches.length || 5;
+  const allReady = totalCount > 0 && readyCount === totalCount;
 
   const handleCompleteRound = async () => {
     if (!allMatchesDone) {
@@ -75,6 +80,108 @@ export const AdminView: React.FC = () => {
         showAdminControls={true}
         onOpenDurationModal={() => setIsDurationModalOpen(true)}
       />
+
+      {/* Live Station Readiness Control Bar (Pre-Round Briefing & Ready Phase) */}
+      <div className={`p-4 md:p-5 rounded-2xl border transition-all ${
+        snapshot?.timer?.status === 'idle'
+          ? allReady
+            ? 'bg-gradient-to-r from-emerald-950/40 via-[#121620] to-[#121620] border-emerald-500/50 shadow-lg glow-green'
+            : 'bg-gradient-to-r from-amber-950/30 via-[#121620] to-[#121620] border-amber-500/40 shadow-lg'
+          : 'bg-[#12161F] border-slate-800'
+      }`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+              allReady ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+            }`}>
+              {allReady ? <CheckCircle2 className="w-5 h-5" /> : <Clock className="w-5 h-5 animate-pulse" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm md:text-base font-black text-white m-0">
+                  {language === 'ar' ? 'جاهزية محطات الألعاب (مرحلة الشرح)' : 'Station Readiness (Briefing Phase)'}
+                </h3>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  allReady
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                }`}>
+                  {readyCount} / {totalCount} {language === 'ar' ? 'جاهز' : 'Ready'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 m-0 mt-0.5">
+                {allReady
+                  ? (language === 'ar' ? 'جميع محطات الألعاب أعلنت جاهزيتها! يمكنك الآن بدء الجولة.' : 'All stations confirmed ready! You can now start the round timer.')
+                  : (language === 'ar' ? 'مشرفو الألعاب يقومون الآن بشرح القواعد للفرق. انقر على المحطة للتبديل اليدوي.' : 'Game operators are currently briefing teams. Click any station chip to toggle manually.')}
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Mark All Ready Button for Admin */}
+          {snapshot?.timer?.status === 'idle' && (
+            <div className="flex items-center gap-2 self-end sm:self-center">
+              <button
+                type="button"
+                onClick={async () => {
+                  const targetState = !allReady;
+                  for (const m of matches) {
+                    await toggleMatchReady(m.id, targetState);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                  allReady
+                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                    : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>
+                  {allReady
+                    ? (language === 'ar' ? 'إعادة ضبط المحطات للشرح' : 'Reset All to Briefing')
+                    : (language === 'ar' ? 'تأكيد جاهزية الجميع (All Ready)' : 'Mark All Stations Ready')}
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 5 Station Chips with quick-click toggle */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-2 border-t border-slate-800/80">
+          {matches.map((match) => {
+            const isReady = match.is_ready;
+            const stationNum = match.game?.station_number ?? 1;
+            const gName = language === 'ar' ? match.game?.name_ar : match.game?.name_en;
+            return (
+              <button
+                key={match.id}
+                type="button"
+                onClick={() => toggleMatchReady(match.id, !isReady)}
+                title={language === 'ar' ? 'انقر لتغيير حالة الجاهزية' : 'Click to toggle readiness'}
+                className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                  isReady
+                    ? 'bg-emerald-500/15 border-emerald-500/40 hover:bg-emerald-500/25 text-emerald-300'
+                    : 'bg-slate-900/90 border-slate-800 hover:border-amber-500/40 text-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1 text-[11px]">
+                  <span className="font-mono font-bold text-slate-400">Station {stationNum}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                    isReady ? 'bg-emerald-500/30 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                  }`}>
+                    {isReady ? (language === 'ar' ? 'جاهز ✓' : 'Ready ✓') : (language === 'ar' ? 'جاري الشرح ⏳' : 'Briefing ⏳')}
+                  </span>
+                </div>
+                <div className="font-bold text-xs truncate text-white">
+                  {gName}
+                </div>
+                <div className="text-[10px] text-slate-400 truncate flex items-center justify-between">
+                  <span>{language === 'ar' ? match.teamA?.name_ar : match.teamA?.name} vs {language === 'ar' ? match.teamB?.name_ar : match.teamB?.name}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Tournament Statistics Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -198,15 +305,30 @@ export const AdminView: React.FC = () => {
         {/* Right Actions: Reset Tournament & View Mode Tabs */}
         <div className="flex flex-wrap items-center gap-2.5">
           {user?.role === 'admin' && (
-            <button
-              type="button"
-              onClick={() => setIsResetModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 text-xs font-bold transition-all cursor-pointer shadow-sm"
-              title={language === 'ar' ? 'تصفير نتائج البطولة بالكامل والبدء من جديد' : 'Reset Tournament'}
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
-              <span>{language === 'ar' ? 'تصفير البطولة' : 'Reset All'}</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedTeamForPoints(null);
+                  setIsAdjustPointsModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:border-cyan-500/50 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                title={language === 'ar' ? 'إضافة نقاط أو خصم نقاط لفريق مباشرة' : 'Adjust points for any team'}
+              >
+                <Award className="w-3.5 h-3.5 text-cyan-400" />
+                <span>{language === 'ar' ? 'إعطاء / تعديل نقاط' : 'Award Points (+/-)'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                title={language === 'ar' ? 'تصفير نتائج البطولة بالكامل والبدء من جديد' : 'Reset Tournament'}
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+                <span>{language === 'ar' ? 'تصفير البطولة' : 'Reset All'}</span>
+              </button>
+            </>
           )}
 
           {/* View Mode Tabs (Matches / Leaderboard / Audit Log) */}

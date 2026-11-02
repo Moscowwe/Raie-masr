@@ -64,6 +64,8 @@ export interface TournamentMatch {
   team_a_id: number;
   team_b_id: number;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  is_ready?: boolean;
+  ready_at?: string | null;
   round?: Round;
   game?: Game;
   teamA?: Team;

@@ -30,6 +30,10 @@ export const PublicView: React.FC = () => {
   const timerStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   const timerStatus = currentTimer?.status ?? 'idle';
 
+  const readyCount = matches.filter((m) => m.is_ready).length;
+  const totalCount = matches.length || 5;
+  const allReady = totalCount > 0 && readyCount === totalCount;
+
   // Champion celebration if round 5 completed
   const isTournamentCompleted =
     currentRoundNum === 5 && activeRound?.status === 'completed';
@@ -100,14 +104,18 @@ export const PublicView: React.FC = () => {
                   ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 glow-red'
                   : timerStatus === 'running'
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 glow-orange'
-                  : 'bg-slate-800 text-slate-300 border-slate-700'
+                  : allReady
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 glow-green animate-pulse'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
               }`}
             >
               {timerStatus === 'expired'
                 ? t('time_expired') + ' • ' + t('awaiting_results')
                 : timerStatus === 'running'
                 ? t('round_active')
-                : t('timer_idle')}
+                : allReady
+                ? (language === 'ar' ? '🔥 جميع المحطات جاهزة! في انتظار إشارة البدء 🔥' : '🔥 ALL STATIONS READY! AWAITING COUNTDOWN 🔥')
+                : (language === 'ar' ? `⏳ مرحلة شرح الألعاب • ${readyCount} من ${totalCount} محطات جاهزة` : `⏳ RULES BRIEFING • ${readyCount}/${totalCount} STATIONS READY`)}
             </span>
           </div>
         </div>
@@ -121,13 +129,34 @@ export const PublicView: React.FC = () => {
             <div className="flex items-center gap-2">
               <Gamepad2 className="w-6 h-6 text-cyan-400" />
               <h2 className="text-lg md:text-xl font-black text-white uppercase tracking-wider m-0">
-                Live Match Stations
+                {language === 'ar' ? 'محطات الألعاب المباشرة' : 'Live Match Stations'}
               </h2>
             </div>
             <span className="text-xs font-mono-esports font-bold text-slate-400">
               Round {currentRoundNum} Assignments
             </span>
           </div>
+
+          {/* Pre-Round Briefing Banner */}
+          {timerStatus === 'idle' && (
+            <div className={`p-3.5 rounded-xl border flex items-center justify-between text-xs transition-all ${
+              allReady
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 glow-green'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${allReady ? 'bg-emerald-400' : 'bg-amber-400 animate-ping'}`} />
+                <span className="font-bold">
+                  {allReady
+                    ? (language === 'ar' ? 'جميع مشرفي الألعاب أكدوا جاهزية محطاتهم!' : 'All game operators confirmed stations ready!')
+                    : (language === 'ar' ? 'المشرفون يشرحون قواعد اللعبة الآن للفرق في المحطات.' : 'Operators are currently briefing rules to teams at stations.')}
+                </span>
+              </div>
+              <span className="font-mono-esports font-bold shrink-0">
+                {readyCount}/{totalCount} READY
+              </span>
+            </div>
+          )}
 
           <div className="space-y-3.5">
             {matches.map((match) => {
@@ -153,6 +182,8 @@ export const PublicView: React.FC = () => {
                       ? 'border-emerald-500/40 bg-gradient-to-r from-[#12161F] to-emerald-950/20'
                       : match.status === 'in_progress'
                       ? 'border-amber-500/40'
+                      : match.is_ready
+                      ? 'border-emerald-500/30'
                       : 'border-slate-800'
                   }`}
                 >
@@ -177,8 +208,16 @@ export const PublicView: React.FC = () => {
                         <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
                         ACTIVE
                       </span>
+                    ) : match.is_ready ? (
+                      <span className="flex items-center gap-1 font-bold text-emerald-400 text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 glow-green">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {language === 'ar' ? 'جاهز ✓' : 'READY ✓'}
+                      </span>
                     ) : (
-                      <span className="text-slate-500 font-bold text-xs">PENDING</span>
+                      <span className="flex items-center gap-1 font-bold text-amber-300 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                        {language === 'ar' ? 'جاري الشرح ⏳' : 'BRIEFING ⏳'}
+                      </span>
                     )}
                   </div>
 

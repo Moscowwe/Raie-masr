@@ -101,6 +101,71 @@ export const translations: Translations = {
     en: 'Duration (Minutes)',
     ar: 'المدة (بالدقائق)',
   },
+  // Station Readiness & Pre-Round Briefing
+  station_ready: {
+    en: 'Ready to Start',
+    ar: 'جاهز للبدء',
+  },
+  station_explaining: {
+    en: 'Rules Briefing',
+    ar: 'جاري الشرح والاستعداد',
+  },
+  mark_as_ready: {
+    en: 'I am Ready • جاهز للبدء',
+    ar: 'جاهز للبدء (Ready)',
+  },
+  mark_as_not_ready: {
+    en: 'Need More Time (Briefing)',
+    ar: 'تعديل (جاري الشرح)',
+  },
+  stations_readiness: {
+    en: 'Stations Readiness',
+    ar: 'جاهزية المحطات',
+  },
+  all_stations_ready: {
+    en: 'All stations are ready to start!',
+    ar: 'جميع المحطات جاهزة للبدء!',
+  },
+  all_stations_ready_banner: {
+    en: 'All 5 game stations confirmed ready! You can now start the round timer.',
+    ar: 'جميع محطات الألعاب الـ 5 أعلنت جاهزيتها! يمكنك الآن بدء مؤقت الجولة.',
+  },
+  waiting_for_stations: {
+    en: 'Waiting for game operators to finish briefing teams...',
+    ar: 'في انتظار انتهاء المشرفين من شرح الألعاب وتأكيد الجاهزية...',
+  },
+  briefing_phase_title: {
+    en: 'Game Briefing & Rules Explanation',
+    ar: 'مرحلة شرح قواعد اللعبة والاستعداد',
+  },
+  briefing_phase_desc: {
+    en: 'Explain the game rules and tactical instructions to both teams, ensure they are positioned, then click Ready.',
+    ar: 'اشرح قواعد اللعبة والتعليمات للفريقين وتأكد من استعدادهما التام، ثم اضغط على زر جاهز لإبلاغ غرفة التحكم.',
+  },
+  ready_confirmed_title: {
+    en: 'Station Ready Confirmed! ✅',
+    ar: 'تم تأكيد الجاهزية بنجاح! ✅',
+  },
+  ready_confirmed_desc: {
+    en: 'Control Room notified that this station is ready. Awaiting round timer start signal (10 minutes).',
+    ar: 'تم إبلاغ غرفة التحكم بأن محطتك جاهزة لبدء الجولة. في انتظار إطلاق صفارة ومؤقت الـ 10 دقائق.',
+  },
+  round_in_progress_banner: {
+    en: 'Round is currently active! 10-minute timer running.',
+    ar: 'الجولة جارية الآن! المؤقت يعمل (10 دقائق) - بالتوفيق للفريقين.',
+  },
+  confirm_start_not_all_ready: {
+    en: 'Some stations are still explaining rules and have not confirmed readiness yet. Start the round anyway?',
+    ar: 'تنبيه: هناك محطات لم تؤكد جاهزيتها بعد (لا تزال في مرحلة الشرح). هل تريد بدء مؤقت الجولة على أي حال؟',
+  },
+  start_anyway: {
+    en: 'Start Anyway',
+    ar: 'بدء الجولة على أي حال',
+  },
+  wait_for_ready: {
+    en: 'Wait for All Ready',
+    ar: 'انتظار اكتمال الجاهزية',
+  },
   // Tournament Stats
   stats_teams: {
     en: 'Total Teams',

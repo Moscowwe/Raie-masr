@@ -73,4 +73,47 @@ class TournamentController extends Controller
             'snapshot' => $this->tournamentService->getFullSnapshot(),
         ]);
     }
+
+    /**
+     * Toggle station readiness before round starts (Operator or Admin).
+     */
+    public function toggleReady(Request $request, int $matchId)
+    {
+        $user = $request->user();
+        $match = \App\Models\TournamentMatch::with(['game', 'round'])->findOrFail($matchId);
+
+        // If operator, can only toggle match for their assigned game
+        if ($user->role === 'operator' && $user->game_id && $match->game_id !== $user->game_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You are only authorized to confirm readiness for your assigned station.',
+            ], 403);
+        }
+
+        $isReady = $request->has('is_ready') ? (bool)$request->input('is_ready') : !$match->is_ready;
+        $match->is_ready = $isReady;
+        $match->ready_at = $isReady ? now() : null;
+        $match->save();
+
+        \App\Models\ActivityLog::create([
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'action' => $isReady ? 'STATION_READY_CONFIRMED' : 'STATION_BRIEFING_EXTENDED',
+            'details' => [
+                'match_id' => $match->id,
+                'round_number' => $match->round?->round_number,
+                'station_number' => $match->game?->station_number,
+                'game_name' => $match->game?->name_en,
+                'is_ready' => $isReady,
+            ],
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $isReady ? 'Station marked as Ready.' : 'Station marked as Briefing.',
+            'match' => $match,
+        ]);
+    }
 }
+

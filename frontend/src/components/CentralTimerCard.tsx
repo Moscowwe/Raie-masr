@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTournament } from '../context/TournamentContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
-import { Play, Pause, RotateCcw, StopCircle, Settings, Lock } from 'lucide-react';
+import { Play, Pause, RotateCcw, StopCircle, Settings, Lock, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 
 interface CentralTimerCardProps {
   onOpenDurationModal?: () => void;
@@ -14,11 +14,19 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
   showAdminControls = false,
 }) => {
   const { currentTimer, snapshot, startRound, pauseRound, resumeRound, expireRound, resetTimer } = useTournament();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useAuth();
+
+  const [showNotReadyModal, setShowNotReadyModal] = useState(false);
 
   const isAdmin = user?.role === 'admin';
   const roundNumber = snapshot?.current_round ?? 1;
+
+  const currentRoundMatches = snapshot?.current_round_matches ?? [];
+  const totalStationCount = currentRoundMatches.length || 5;
+  const readyStationCount = currentRoundMatches.filter((m) => m.is_ready).length;
+  const allStationsReady = totalStationCount > 0 && readyStationCount === totalStationCount;
+  const unreadyMatches = currentRoundMatches.filter((m) => !m.is_ready);
 
   const isRoundLocked = roundNumber > 1 && (
     snapshot?.all_matches.some((m) => m.round_id < roundNumber && m.status !== 'completed') ||
@@ -99,6 +107,27 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
             <span className={`w-2 h-2 rounded-full ${statusBadge.dot}`} />
             {statusBadge.label}
           </span>
+
+          {status === 'idle' && (
+            <span
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all duration-300 ${
+                allStationsReady
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 glow-green'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+              }`}
+            >
+              {allStationsReady ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              )}
+              <span>
+                {language === 'ar'
+                  ? `جاهزية المحطات: ${readyStationCount} من ${totalStationCount} جاهز`
+                  : `Stations Ready: ${readyStationCount}/${totalStationCount}`}
+              </span>
+            </span>
+          )}
         </div>
 
         {/* Big Esports Digital Countdown */}
@@ -140,17 +169,29 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
           <div className="flex flex-wrap items-center justify-center gap-2.5 mt-2">
             {status !== 'running' ? (
               <button
-                onClick={status === 'paused' ? resumeRound : startRound}
+                onClick={() => {
+                  if (status === 'paused') {
+                    resumeRound();
+                  } else if (status === 'idle' && !allStationsReady) {
+                    setShowNotReadyModal(true);
+                  } else {
+                    startRound();
+                  }
+                }}
                 disabled={isRoundLocked}
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all transform ${
                   isRoundLocked
                     ? 'bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                    : status === 'idle' && allStationsReady
+                    ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white shadow-lg shadow-emerald-500/30 active:scale-95 cursor-pointer glow-green animate-pulse'
                     : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-lg shadow-blue-500/25 active:scale-95 cursor-pointer glow-blue'
                 }`}
                 title={isRoundLocked ? t('cannot_start_locked_round') : undefined}
               >
                 {isRoundLocked ? (
                   <Lock className="w-4 h-4 text-amber-400" />
+                ) : status === 'idle' && allStationsReady ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-200" />
                 ) : (
                   <Play className="w-4 h-4 fill-white" />
                 )}
@@ -158,7 +199,9 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
                   ? t('round_locked')
                   : status === 'paused'
                   ? t('resume_timer')
-                  : t('start_round')}
+                  : allStationsReady
+                  ? (language === 'ar' ? 'بدء الجولة (الكل جاهز 5/5) ⚡' : 'START ROUND (All Ready 5/5)')
+                  : (language === 'ar' ? `بدء الجولة (${readyStationCount}/${totalStationCount} جاهز)` : `START ROUND (${readyStationCount}/${totalStationCount})`)}
               </button>
             ) : (
               <button
@@ -201,6 +244,84 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
           </div>
         )}
       </div>
+
+      {/* Warning Modal when Admin starts round before all stations are ready */}
+      {showNotReadyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-md rounded-2xl bg-[#161B26] border border-amber-500/40 p-6 shadow-2xl text-right space-y-4">
+            <button
+              onClick={() => setShowNotReadyModal(false)}
+              className="absolute top-4 left-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white m-0">
+                  {language === 'ar' ? 'تنبيه: محطات لم تؤكد الجاهزية بعد' : 'Stations Not Ready Yet'}
+                </h3>
+                <span className="text-xs text-amber-300">
+                  {language === 'ar'
+                    ? `جاهزية ${readyStationCount} من أصل ${totalStationCount} محطات فقط`
+                    : `Only ${readyStationCount} of ${totalStationCount} stations ready`}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed m-0">
+              {language === 'ar'
+                ? 'المحطات التالية لا تزال في مرحلة شرح قواعد اللعبة للفرق:'
+                : 'The following stations are still briefing rules to teams:'}
+            </p>
+
+            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+              {unreadyMatches.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-xs"
+                >
+                  <span className="text-amber-300 font-bold">
+                    ⏳ {language === 'ar' ? 'جاري الشرح' : 'Briefing'}
+                  </span>
+                  <span className="text-white font-medium">
+                    {language === 'ar' ? m.game?.name_ar : m.game?.name_en} (محطة {m.game?.station_number})
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] text-slate-400 m-0">
+              {language === 'ar'
+                ? 'هل ترغب في بدء مؤقت الجولة (10 دقائق) على أي حال؟'
+                : 'Do you want to start the 10-minute round timer anyway?'}
+            </p>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNotReadyModal(false);
+                  startRound();
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold text-xs shadow-lg shadow-blue-500/25 active:scale-95 transition-all cursor-pointer"
+              >
+                {language === 'ar' ? 'بدء الجولة على أي حال' : 'Start Round Anyway'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowNotReadyModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all cursor-pointer"
+              >
+                {language === 'ar' ? 'انتظار اكتمال الجاهزية' : 'Wait for Ready'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

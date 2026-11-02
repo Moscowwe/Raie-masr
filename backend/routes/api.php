@@ -30,6 +30,9 @@ Route::middleware([AuthenticateApiToken::class])->group(function () {
 
     // Operator or Admin Result Submission
     Route::post('/matches/{matchId}/result', [ResultController::class, 'submit']);
+
+    // Operator or Admin Ready Confirmation
+    Route::post('/matches/{matchId}/ready', [TournamentController::class, 'toggleReady']);
 });
 
 /*
