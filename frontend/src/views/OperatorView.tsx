@@ -148,7 +148,7 @@ export const OperatorView: React.FC = () => {
           <span
             className={`font-mono-esports text-2xl font-black ${
               timerStatus === 'expired'
-                ? 'text-rose-400 animate-pulse'
+                ? 'text-cyan-400'
                 : timerStatus === 'running' && remaining <= 60
                 ? 'text-amber-400'
                 : 'text-cyan-400'
@@ -161,14 +161,14 @@ export const OperatorView: React.FC = () => {
               timerStatus === 'running'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                 : timerStatus === 'expired'
-                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
                 : 'bg-slate-800 text-slate-400'
             }`}
           >
             {timerStatus === 'running'
               ? 'ACTIVE'
               : timerStatus === 'expired'
-              ? 'EXPIRED'
+              ? (language === 'ar' ? 'انتهى الوقت' : 'ENDED')
               : 'IDLE'}
           </span>
         </div>
@@ -343,6 +343,19 @@ export const OperatorView: React.FC = () => {
             </div>
           )}
 
+          {timerStatus === 'expired' && (
+            <div className="p-4 rounded-xl bg-cyan-500/15 border border-cyan-500/40 flex items-center justify-between text-cyan-300 shadow-md">
+              <div className="flex items-center gap-2.5 text-xs font-bold">
+                <CheckCircle2 className="w-5 h-5 text-cyan-400 shrink-0" />
+                <span>
+                  {language === 'ar'
+                    ? '⏱️ انتهى وقت الـ 10 دقائق — يمكنك الآن اختيار الفريق الفائز واعتماد النتيجة أدناه بكل هدوء'
+                    : 'Time Completed — You can now select the winning team and submit the result below'}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Two Large Team Cards */}
           <div className="grid grid-cols-2 gap-4">
             {/* Team A Touch Card */}
@@ -418,6 +431,15 @@ export const OperatorView: React.FC = () => {
 
           {/* THREE EXTREMELY LARGE WINNER BUTTONS */}
           <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-bold text-slate-300">
+                {language === 'ar' ? 'حدد نتيجة المباراة واعتمد الفائز:' : 'Select Match Result:'}
+              </span>
+              <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{language === 'ar' ? 'التسجيل متاح في أي وقت' : 'Submission Always Open'}</span>
+              </span>
+            </div>
             {/* 1. TEAM A WINS */}
             <button
               onClick={() => handleSelectOutcome(teamA?.id ?? null, false)}

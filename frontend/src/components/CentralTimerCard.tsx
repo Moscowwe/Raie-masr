@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTournament } from '../context/TournamentContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
-import { Play, Pause, RotateCcw, StopCircle, Settings, Lock, CheckCircle2, AlertTriangle, X } from 'lucide-react';
+import { Play, Pause, RotateCcw, StopCircle, Settings, Lock, CheckCircle2, AlertTriangle, X, Clock } from 'lucide-react';
 
 interface CentralTimerCardProps {
   onOpenDurationModal?: () => void;
@@ -27,6 +27,9 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
   const readyStationCount = currentRoundMatches.filter((m) => m.is_ready).length;
   const allStationsReady = totalStationCount > 0 && readyStationCount === totalStationCount;
   const unreadyMatches = currentRoundMatches.filter((m) => !m.is_ready);
+
+  const completedCount = currentRoundMatches.filter((m) => m.status === 'completed').length;
+  const allMatchesDone = totalStationCount > 0 && completedCount === totalStationCount;
 
   const isRoundLocked = roundNumber > 1 && (
     snapshot?.all_matches.some((m) => m.round_id < roundNumber && m.status !== 'completed') ||
@@ -67,9 +70,9 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
         };
       case 'expired':
         return {
-          label: `${t('time_expired')} • ${t('awaiting_results')}`,
-          bg: 'bg-rose-500/25 text-rose-300 border-rose-500/40 glow-red',
-          dot: 'bg-rose-400 animate-pulse',
+          label: `${language === 'ar' ? 'انتهى الوقت' : 'Time Ended'} • ${language === 'ar' ? `بانتظار تسجيل النتائج (${completedCount}/${totalStationCount})` : `Awaiting Results (${completedCount}/${totalStationCount})`}`,
+          bg: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 glow-cyan',
+          dot: 'bg-cyan-400',
         };
       default:
         return {
@@ -90,7 +93,7 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
           status === 'running'
             ? 'bg-amber-500'
             : status === 'expired'
-            ? 'bg-rose-600'
+            ? 'bg-cyan-600'
             : 'bg-blue-600'
         }`}
       />
@@ -135,7 +138,7 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
           <div
             className={`font-mono-esports text-6xl md:text-8xl font-black tracking-tight select-none transition-colors duration-300 ${
               status === 'expired'
-                ? 'text-rose-500 drop-shadow-[0_0_35px_rgba(244,63,94,0.6)]'
+                ? 'text-cyan-400 drop-shadow-[0_0_25px_rgba(34,211,238,0.4)]'
                 : status === 'running' && remainingSeconds <= 60
                 ? 'text-amber-400 drop-shadow-[0_0_30px_rgba(251,191,36,0.6)] animate-pulse'
                 : status === 'running'
@@ -155,7 +158,7 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
           <div
             className={`h-full rounded-full transition-all duration-500 ${
               status === 'expired'
-                ? 'bg-rose-500'
+                ? 'bg-cyan-500'
                 : status === 'running' && remainingSeconds <= 60
                 ? 'bg-amber-400'
                 : 'bg-gradient-to-r from-blue-600 via-cyan-400 to-blue-500'
@@ -167,7 +170,16 @@ export const CentralTimerCard: React.FC<CentralTimerCardProps> = ({
         {/* Admin Controls */}
         {showAdminControls && isAdmin && (
           <div className="flex flex-wrap items-center justify-center gap-2.5 mt-2">
-            {status !== 'running' ? (
+            {status === 'expired' && !allMatchesDone ? (
+              <button
+                disabled={true}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-slate-800/90 text-amber-300 border border-amber-500/40 cursor-not-allowed opacity-90 shadow-md"
+                title={language === 'ar' ? 'بانتظار تسجيل النتائج من جميع المحطات قبل بدء الجولة التالية' : 'Awaiting results from all stations before starting next round'}
+              >
+                <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
+                <span>{language === 'ar' ? `بانتظار تسجيل نتائج الجولة (${completedCount}/${totalStationCount})` : `Awaiting Round Results (${completedCount}/${totalStationCount})`}</span>
+              </button>
+            ) : status !== 'running' ? (
               <button
                 onClick={() => {
                   if (status === 'paused') {

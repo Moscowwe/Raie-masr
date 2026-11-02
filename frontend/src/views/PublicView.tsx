@@ -89,7 +89,7 @@ export const PublicView: React.FC = () => {
             <div
               className={`font-mono-esports text-7xl md:text-9xl font-black tracking-tight drop-shadow-[0_0_40px_rgba(0,210,255,0.4)] ${
                 timerStatus === 'expired'
-                  ? 'text-rose-500 animate-pulse drop-shadow-[0_0_50px_rgba(244,63,94,0.7)]'
+                  ? 'text-cyan-400'
                   : timerStatus === 'running' && remaining <= 60
                   ? 'text-amber-400 animate-pulse'
                   : 'text-cyan-400'
@@ -101,7 +101,7 @@ export const PublicView: React.FC = () => {
             <span
               className={`inline-block px-5 py-1.5 rounded-full text-xs md:text-sm font-black uppercase tracking-widest mt-2 border ${
                 timerStatus === 'expired'
-                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 glow-red'
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/40 glow-cyan'
                   : timerStatus === 'running'
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 glow-orange'
                   : allReady
@@ -110,7 +110,7 @@ export const PublicView: React.FC = () => {
               }`}
             >
               {timerStatus === 'expired'
-                ? t('time_expired') + ' • ' + t('awaiting_results')
+                ? (language === 'ar' ? '⏱️ انتهى وقت الجولة • بانتظار تسجيل نتائج المحطات' : 'ROUND TIME ENDED • AWAITING STATION RESULTS')
                 : timerStatus === 'running'
                 ? t('round_active')
                 : allReady

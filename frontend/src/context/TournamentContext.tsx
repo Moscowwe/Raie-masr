@@ -264,8 +264,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         });
       })
       .on('broadcast', { event: 'RoundTimeExpired' }, (payload) => {
-        soundController.playBuzzer();
-        addToast('warning', 'TIME EXPIRED', 'Round timer has ended. Awaiting operator results.');
+        if (!hasBuzzerPlayedRef.current) {
+          hasBuzzerPlayedRef.current = true;
+          addToast('info', 'انتهاء وقت الجولة', 'انتهى وقت الـ 10 دقائق للجولة. يمكن للحكام الآن تسجيل النتائج واختيار الفريق الفائز.');
+        }
         if (payload.payload?.snapshot) {
           applySyncedSnapshot(payload.payload.snapshot);
           return;
@@ -594,7 +596,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (!hasBuzzerPlayedRef.current) {
           hasBuzzerPlayedRef.current = true;
           soundController.playBuzzer();
-          addToast('warning', 'TIME EXPIRED', 'Round timer has expired! Awaiting match submissions.');
+          addToast('info', 'انتهاء وقت الجولة', 'انتهى وقت الـ 10 دقائق للجولة. يمكن للحكام الآن تسجيل واختيار الفريق الفائز.');
           broadcastSupabase('RoundTimeExpired', { snapshot: snapshotRef.current });
         }
 
@@ -641,6 +643,20 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           'error',
           'الجولة مغلقة (Round Locked)',
           `لا يمكن بدء المؤقت للجولة ${roundNum} حتى تكتمل جميع مباريات الجولة ${roundNum - 1} بالكامل.`
+        );
+        return false;
+      }
+    }
+
+    // Strict rule: Cannot start a new round or restart if current round matches are still awaiting winner selection
+    if (currentTimer?.status === 'expired' && snapshot?.all_matches) {
+      const currentMatches = snapshot.all_matches.filter((m) => m.round_id === roundNum);
+      const pendingMatches = currentMatches.filter((m) => m.status !== 'completed');
+      if (pendingMatches.length > 0) {
+        addToast(
+          'warning',
+          'بانتظار تسجيل النتائج',
+          `لا يمكن بدء الجولة التالية حتى يقوم جميع الحكام الـ 5 باختيار الفريق الفائز (${5 - pendingMatches.length}/5 مسجلة حالياً).`
         );
         return false;
       }
@@ -1110,6 +1126,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       let nextRoundNum = prev.current_round;
       let updatedRounds = prev.rounds;
+      let updatedTimer = prev.timer;
 
       if (isRoundNowFullyFinished && thisMatchRoundId < 5) {
         nextRoundNum = thisMatchRoundId + 1;
@@ -1122,6 +1139,21 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
           return r;
         });
+
+        // Cleanly reset timer to idle for the newly unlocked round
+        const defaultDur = prev.timer?.duration_seconds || 600;
+        updatedTimer = {
+          round_id: nextRoundNum,
+          round_number: nextRoundNum,
+          duration_seconds: defaultDur,
+          remaining_seconds: defaultDur,
+          status: 'idle',
+          started_at: null,
+          expires_at: null,
+          server_timestamp: Date.now(),
+        };
+        hasBuzzerPlayedRef.current = false;
+        setCurrentTimer(updatedTimer);
       } else if (isRoundNowFullyFinished && thisMatchRoundId === 5) {
         updatedRounds = prev.rounds.map((r) => {
           if (r.round_number === 5) {
@@ -1137,6 +1169,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         current_round: nextRoundNum,
         active_round: updatedRounds.find((r) => r.round_number === nextRoundNum) || null,
         rounds: updatedRounds,
+        timer: updatedTimer,
         all_matches: updatedMatches,
         current_round_matches: currentRoundMatches,
         leaderboard: computeLeaderboard(updatedMatches, prev.point_adjustments || {}),

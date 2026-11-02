@@ -16,33 +16,27 @@ class SoundController {
     return this.ctx;
   }
 
-  // Dramatic Game Buzzer when Round Timer reaches 0
+  // Gentle chime when Round Timer reaches 0 (soft, non-intrusive)
   playBuzzer() {
     if (!this.enabled) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
+    const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    osc1.type = 'sawtooth';
-    osc2.type = 'square';
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(520, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(330, ctx.currentTime + 0.4);
 
-    osc1.frequency.setValueAtTime(120, ctx.currentTime);
-    osc2.frequency.setValueAtTime(124, ctx.currentTime); // Slight detune for harsh sports horn
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
 
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
-
-    osc1.connect(gain);
-    osc2.connect(gain);
+    osc.connect(gain);
     gain.connect(ctx.destination);
 
-    osc1.start();
-    osc2.start();
-    osc1.stop(ctx.currentTime + 1.2);
-    osc2.stop(ctx.currentTime + 1.2);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
   }
 
   // Referee whistle when Round starts
